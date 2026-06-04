@@ -1,7 +1,126 @@
 <!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Pod-ing Helm Chart</title></head>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pod-ing Helm Chart Repository</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f6f8fa;
+      color: #24292f;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 64px 24px;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #d0d7de;
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 8px 24px rgba(140, 149, 159, 0.15);
+    }
+
+    .badge {
+      display: inline-block;
+      background: #ddf4ff;
+      color: #0969da;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: 44px;
+      margin: 0 0 12px;
+    }
+
+    .subtitle {
+      font-size: 18px;
+      color: #57606a;
+      margin-bottom: 32px;
+      line-height: 1.6;
+    }
+
+    h2 {
+      margin-top: 32px;
+      font-size: 22px;
+    }
+
+    pre {
+      background: #0d1117;
+      color: #e6edf3;
+      padding: 20px;
+      border-radius: 12px;
+      overflow-x: auto;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    ul {
+      line-height: 1.8;
+    }
+
+    .footer {
+      margin-top: 28px;
+      color: #6e7781;
+      font-size: 14px;
+    }
+  </style>
+</head>
 <body>
-<h1>Pod-ing Helm Chart Repository</h1>
-<pre>helm repo add poding https://yew0n12.github.io/capstone-poding/
-helm install poding poding/poding</pre>
-</body></html>
+  <main class="container">
+    <section class="card">
+      <div class="badge">Helm Chart Repository</div>
+
+      <h1>Pod-ing</h1>
+
+      <p class="subtitle">
+        Kubernetes security correlation platform that combines Falco runtime events
+        and Cilium Hubble network flows to detect attack chains in real time.
+      </p>
+
+      <h2>Quick Install</h2>
+      <pre><code>helm repo add poding https://yew0n12.github.io/capstone-poding/
+helm repo update
+helm install poding poding/poding -n poding-system --create-namespace</code></pre>
+
+      <h2>What is Pod-ing?</h2>
+      <ul>
+        <li>Collects runtime security events from Falco</li>
+        <li>Collects network flow data from Cilium Hubble</li>
+        <li>Correlates heterogeneous events using an FSM-based detection engine</li>
+        <li>Visualizes attack propagation through observability components</li>
+      </ul>
+
+      <h2>Requirements</h2>
+      <ul>
+        <li>Kubernetes cluster</li>
+        <li>Helm 3</li>
+        <li>Falco</li>
+        <li>Cilium / Hubble</li>
+      </ul>
+
+      <h2>Chart Information</h2>
+      <pre><code>Repository: poding
+Chart:      poding/poding
+Namespace:  poding-system</code></pre>
+
+      <p class="footer">
+        Pod-ing Capstone Design Project · Kubernetes Security Correlation Platform
+      </p>
+    </section>
+  </main>
+</body>
+</html>
