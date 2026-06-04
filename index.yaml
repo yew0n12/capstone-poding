@@ -1,0 +1,26 @@
+apiVersion: v1
+entries:
+  poding:
+  - apiVersion: v2
+    appVersion: prototype
+    created: "2026-06-04T10:25:17.55011+09:00"
+    description: 'Pod-ing — Kubernetes 보안 상관분석(Security Correlation) 시스템. Falco·Hubble
+      신호를 NFA로 상관분석해 컨테이너/파드 간 공격 전파를 탐지하고, 관제자가 flow·detector 상태를 UI(Grafana/propagation)로
+      확인할 수 있게 한다. 본 차트로 클러스터에 배포 가능하다. '
+    digest: f97f0a7f3eb882bba643c939239c07608adc76db8933879bbfa0e93f1dcdd533
+    home: https://github.com/yew0n12/capstone-poding
+    keywords:
+    - security
+    - kubernetes
+    - falco
+    - hubble
+    - correlation
+    - nfa
+    maintainers:
+    - name: poding-capstone
+    name: poding
+    type: application
+    urls:
+    - https://yew0n12.github.io/capstone-poding/poding-0.1.0.tgz
+    version: 0.1.0
+generated: "2026-06-04T10:25:17.548892+09:00"
