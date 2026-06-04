@@ -1,0 +1,120 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-rules
+  namespace: poding-system
+  labels:
+    app.kubernetes.io/instance: falco
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: falco
+    app.kubernetes.io/version: 0.43.0
+    helm.sh/chart: falco-8.0.1
+  annotations:
+    meta.helm.sh/release-name: falco
+    meta.helm.sh/release-namespace: poding-system
+data:
+  container-escape-rules.yaml: |-
+    - rule: Read Sensitive File via hostPath
+      desc: Container reading host sensitive files through hostPath mount
+      condition: >
+        open_read and container and
+        not container.image.repository contains node-exporter and
+        (fd.name startswith /host/etc/shadow or
+         fd.name startswith /host/etc/kubernetes or
+         fd.name startswith /host/etc/crontab or
+         fd.name startswith /host/root)
+      output: >
+        Sensitive host file read via hostPath
+        (file=%fd.name pod=%k8s.pod.name ns=%k8s.ns.name
+        user=%user.name image=%container.image.repository)
+      priority: ERROR
+      tags: [container_escape, host_access]
+
+    - rule: Namespace Escape via nsenter
+      desc: nsenter executed inside container
+      condition: >
+        spawned_process and container and
+        proc.name in (nsenter, unshare)
+      output: >
+        Namespace escape tool executed
+        (proc=%proc.name pod=%k8s.pod.name ns=%k8s.ns.name
+        user=%user.name cmdline=%proc.cmdline)
+      priority: CRITICAL
+      tags: [container_escape, namespace_escape]
+
+    - rule: Write to Host Crontab via hostPath
+      desc: Writing to host crontab through hostPath mount
+      condition: >
+        open_write and container and
+        (fd.name startswith /host/etc/cron or
+         fd.name = /host/etc/crontab)
+      output: >
+        Host crontab modified via hostPath
+        (file=%fd.name pod=%k8s.pod.name ns=%k8s.ns.name
+        user=%user.name)
+      priority: CRITICAL
+      tags: [container_escape, persistence]
+
+    - rule: Read Kubeconfig via hostPath
+      desc: Reading kubernetes admin config through hostPath mount
+      condition: >
+        open_read and container and
+        (fd.name startswith /host/etc/kubernetes or
+         fd.name startswith /host/root/.kube)
+      output: >
+        Kubeconfig read via hostPath
+        (file=%fd.name pod=%k8s.pod.name ns=%k8s.ns.name
+        user=%user.name)
+      priority: CRITICAL
+      tags: [container_escape, credential_access]
+  lateral-movement-rules.yaml: |-
+    - rule: Shell Exec in Container
+      desc: Any shell spawned inside a container for lateral movement detection
+      condition: >
+        spawned_process and container and
+        proc.name in (sh, bash, ash, dash, zsh)
+      output: >
+        Shell executed in container
+        (user=%user.name pod=%k8s.pod.name ns=%k8s.ns.name
+        proc=%proc.cmdline container=%container.id)
+      priority: WARNING
+      tags: [lateral_movement, shell_exec]
+
+    - rule: Service Account Token Access
+      desc: Credential-reading tool accessed a Kubernetes service account token
+      condition: >
+        open_read and container and
+        fd.name startswith /var/run/secrets/kubernetes.io/serviceaccount and
+        k8s.ns.name != poding-system and
+        proc.name in (cat, head, tail, base64, xxd, od, hexdump, curl, wget,
+                      nc, ncat, cp, dd, less, more, vi, vim, nano, awk, sed,
+                      python, python3, perl, ruby, jq, strings)
+      output: >
+        Service account token accessed
+        (file=%fd.name user=%user.name pod=%k8s.pod.name ns=%k8s.ns.name
+        container=%container.id)
+      priority: WARNING
+      tags: [lateral_movement, credential_access]
+
+    - list: poding_k8s_api_cluster_ips
+      items: ["10.96.0.1"] # poding-render: k8s-api-cluster-ips
+
+    - list: poding_k8s_api_endpoint_ips
+      items: ["192.168.56.10"] # poding-render: k8s-api-endpoint-ips
+
+    - rule: Pod-ing K8s API Access from Container
+      desc: Detect TCP connections from a workload container to the in-cluster Kubernetes API server (MITRE ATT&CK T1552.007 Container API Access). Covers both ClusterIP path (no kube-proxy replacement) and direct endpoint path (Cilium socket-LB rewrites ClusterIP to apiserver endpoint before connect syscall).
+      condition: >
+        evt.type = connect and evt.dir = < and
+        fd.typechar = 4 and
+        container and
+        ((fd.sip in (poding_k8s_api_cluster_ips) and fd.sport = 443) or
+         (fd.sip in (poding_k8s_api_endpoint_ips) and fd.sport = 6443)) and
+        k8s.ns.name != poding-system and
+        k8s.ns.name != kube-system
+      output: >
+        K8s API access from container
+        (pod=%k8s.pod.name ns=%k8s.ns.name container=%container.id
+        proc=%proc.name cmdline=%proc.cmdline dest=%fd.sip:%fd.sport)
+      priority: NOTICE
+      tags: [k8s_api_access, mitre_t1552_007, credential_access]

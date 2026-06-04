@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Propagation Causal Graph</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.min.js"></script>
+</head>
+<body>
+<div id="topbar">
+  <div class="title">Propagation Causal Graph</div>
+  <div class="controls">
+    <span id="baseline-badge" class="badge">baseline: ?</span>
+    <span id="counts" class="badge">0 nodes / 0 edges</span>
+    <label class="badge"><input type="checkbox" id="show-baseline"> show baseline</label>
+    <label class="badge"><input type="checkbox" id="show-isolated"> show isolated</label>
+    <button id="refresh">Refresh</button>
+    <button id="reset-baseline">Reset baseline</button>
+    <label>auto<input type="checkbox" id="auto" checked></label>
+  </div>
+</div>
+<div id="legend">
+  <span class="lg n-matched">matched</span>
+  <span class="lg n-propagated">propagated</span>
+  <span class="lg n-partial">partial</span>
+  <span class="lg n-adjacent">adjacent</span>
+  <span class="lg n-normal">normal</span>
+  <span class="lg n-external">external</span>
+  <span class="sep"></span>
+  <span class="lg e-prop">propagation edge</span>
+  <span class="lg e-part">partial edge</span>
+  <span class="lg e-adj">adjacent edge</span>
+  <span class="lg e-base">baseline edge</span>
+</div>
+<div id="cy"></div>
+<aside id="evidence-panel">
+  <div class="panel-title">FSM <span id="fsm-pod" class="pod-badge"></span></div>
+  <svg id="fsm-svg" viewBox="0 0 320 200" preserveAspectRatio="xMidYMid meet"></svg>
+  <div id="fsm-meta"></div>
+  <div class="panel-title">Symbol trace</div>
+  <ol id="fsm-events" class="ev-list"></ol>
+  <div class="panel-title">Evidence</div>
+  <pre id="evidence-body">Click a node or edge for details.</pre>
+</aside>
+<script src="app.js"></script>
+</body>
+</html>

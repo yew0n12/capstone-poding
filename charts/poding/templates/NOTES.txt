@@ -1,0 +1,60 @@
+Pod-ing 이(가) "{{ .Release.Name }}" 로 네임스페이스 {{ include "poding.namespace" . }} 에 배포되었습니다.
+
+배포된 컴포넌트:
+{{- if .Values.detector.enabled }}
+  ✓ poding-detector          (NFA 상관분석 파이프라인, :{{ .Values.detector.port }})
+{{- end }}
+{{- if .Values.metricsExporter.enabled }}
+  ✓ poding-metrics-exporter  (Prometheus 메트릭, :{{ .Values.metricsExporter.port }}/metrics)
+{{- end }}
+{{- if .Values.propagationExporter.enabled }}
+  ✓ propagation-exporter     (cross-layer 전파 UI, :{{ .Values.propagationExporter.port }})
+  {{- if .Values.propagationExporter.advisoryShim.enabled }}
+  ✓ propagation-advisory-shim (Falco advisory 피드백 shim)
+  {{- end }}
+{{- end }}
+{{- if .Values.imageLoader.enabled }}
+  ✓ poding-image-loader      (kind/lab 이미지 적재 헬퍼)
+{{- end }}
+{{- if .Values.serviceMonitor.enabled }}
+  ✓ ServiceMonitor           (prometheus-operator 스크랩)
+{{- end }}
+{{- if .Values.grafana.dashboards.enabled }}
+  ✓ Grafana 대시보드          (detector 상태 — sidecar 자동 로드, 폴더 "{{ .Values.grafana.dashboards.folder }}")
+{{- end }}
+{{- if .Values.grafana.datasources.enabled }}
+  ✓ Grafana 데이터소스         (flow — NodeGraphAPI/Propagation)
+{{- end }}
+
+상태 확인:
+  kubectl get pods -n {{ include "poding.namespace" . }}
+
+관제 UI 확인 (포트포워드):
+{{- if .Values.propagationExporter.enabled }}
+  # cross-layer 전파 UI
+  kubectl port-forward -n {{ include "poding.namespace" . }} svc/propagation-exporter {{ .Values.propagationExporter.port }}:{{ .Values.propagationExporter.port }}
+  # → http://localhost:{{ .Values.propagationExporter.port }}
+{{- end }}
+{{- if .Values.detector.enabled }}
+  # detector API
+  kubectl port-forward -n {{ include "poding.namespace" . }} svc/poding-detector {{ .Values.detector.port }}:{{ .Values.detector.port }}
+{{- end }}
+
+관제 UI — 무엇을 어디서 보나:
+  · detector 상태 → Grafana 대시보드 (Overview / Attack-Graph)
+  {{- if not .Values.grafana.dashboards.enabled }}
+    (현재 미배포 — grafana.dashboards.enabled=true 로 차트에서 자동 배포 가능)
+  {{- end }}
+  · 공격 전파 flow → propagation-exporter UI (위 :{{ .Values.propagationExporter.port }})
+{{- if .Values.hubbleUI.showInstructions }}
+  · 네트워크(east-west) flow → Cilium Hubble UI (차트가 배포하지 않음, Cilium 측에서 활성화):
+      cilium hubble enable --ui
+      cilium hubble ui            # 브라우저로 flow 그래프 열기
+      # relay: {{ .Values.hubbleUI.relayNamespace }} 네임스페이스
+{{- end }}
+
+주의:
+  - 이미지 "{{ include "poding.image" . }}" 는 로컬 빌드 이미지입니다.
+    노드({{ .Values.nodePlacement.hostname }})의 컨테이너 런타임에 미리 적재되어 있어야 합니다.
+  - detector/exporter 는 hostPath "{{ .Values.hostPath.repoRoot }}" 를 마운트하므로
+    해당 경로에 poding 레포가 있어야 합니다.

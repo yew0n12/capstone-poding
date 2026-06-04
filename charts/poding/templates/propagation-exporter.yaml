@@ -1,0 +1,152 @@
+{{- if .Values.propagationExporter.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: propagation-exporter
+  namespace: {{ include "poding.namespace" . }}
+  labels:
+    {{- include "poding.labels" . | nindent 4 }}
+    app: propagation-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: propagation-exporter
+  template:
+    metadata:
+      labels:
+        app: propagation-exporter
+    spec:
+      # detector 가 쓰는 hostPath 를 읽으므로 같은 노드에 핀.
+      {{- include "poding.nodePlacement" . | nindent 6 }}
+      {{- /* runFromImage: 이미지 코드(workdir)로 실행 + results 만 마운트. */}}
+      {{- $codeRoot := ternary .Values.image.workdir .Values.hostPath.repoRoot .Values.propagationExporter.runFromImage }}
+      {{- $resultsInPod := .Values.hostPath.resultsDir }}
+      {{- if .Values.propagationExporter.runFromImage }}{{- $resultsInPod = printf "%s/results" $codeRoot }}{{- end }}
+      containers:
+        - name: exporter
+          image: {{ include "poding.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - python3
+            - {{ $codeRoot }}/propagation/exporter/server.py
+          env:
+            - name: PROPAGATION_RESULTS_DIR
+              value: {{ $resultsInPod }}
+            - name: PROPAGATION_UI_DIR
+              value: {{ $codeRoot }}/propagation/exporter/ui
+            - name: PROPAGATION_PORT
+              value: {{ .Values.propagationExporter.port | quote }}
+            - name: PROPAGATION_POLL_INTERVAL
+              value: {{ .Values.propagationExporter.pollInterval | quote }}
+            - name: PROPAGATION_BASELINE_SECONDS
+              value: {{ .Values.propagationExporter.baselineSeconds | quote }}
+            - name: PROPAGATION_ADVISORY_FILE
+              value: /var/lib/propagation/advisory.jsonl
+            - name: PROPAGATION_ADVISORY_HOST
+              value: propagation-advisory-shim
+          ports:
+            - name: http
+              containerPort: {{ .Values.propagationExporter.port }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.propagationExporter.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.propagationExporter.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          {{- with .Values.propagationExporter.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- if .Values.propagationExporter.runFromImage }}
+            - name: poding-results
+              mountPath: {{ $resultsInPod }}
+              readOnly: true
+            {{- else }}
+            - name: poding-workdir
+              mountPath: {{ .Values.hostPath.repoRoot }}
+              readOnly: true
+            {{- end }}
+            - name: advisory-out
+              mountPath: /var/lib/propagation
+      volumes:
+        {{- if .Values.propagationExporter.runFromImage }}
+        - name: poding-results
+          hostPath:
+            path: {{ .Values.hostPath.resultsDir }}
+            type: DirectoryOrCreate
+        {{- else }}
+        - name: poding-workdir
+          hostPath:
+            path: {{ .Values.hostPath.repoRoot }}
+            type: Directory
+        {{- end }}
+        - name: advisory-out
+          hostPath:
+            # advisory-shim 이 tail 하는 디렉토리와 동일.
+            path: {{ .Values.hostPath.advisoryDir }}
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: propagation-exporter
+  namespace: {{ include "poding.namespace" . }}
+  labels:
+    {{- include "poding.labels" . | nindent 4 }}
+    app: propagation-exporter
+spec:
+  selector:
+    app: propagation-exporter
+  ports:
+    - name: http
+      port: {{ .Values.propagationExporter.port }}
+      targetPort: {{ .Values.propagationExporter.port }}
+{{- if .Values.propagationExporter.advisoryShim.enabled }}
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: propagation-advisory-shim
+  namespace: {{ include "poding.namespace" . }}
+  labels:
+    {{- include "poding.labels" . | nindent 4 }}
+    # 이 라벨로 detector 의 Falco follower(selector app.kubernetes.io/name=falco,
+    # container -c falco)가 자동으로 이 Pod 를 집어간다. advisory.jsonl 을
+    # Falco JSON 형태로 스트리밍해 detector 가 실제 Falco 이벤트처럼 파싱.
+    app.kubernetes.io/name: falco
+    app: propagation-advisory-shim
+    role: cross-layer-feedback
+spec:
+  {{- include "poding.nodePlacement" . | nindent 2 }}
+  restartPolicy: Always
+  containers:
+    - name: falco            # detector reads: kubectl logs ... -c falco
+      image: {{ .Values.propagationExporter.advisoryShim.image }}
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      command:
+        - sh
+        - -c
+        - |
+          set -e
+          mkdir -p /data
+          : > /data/advisory.jsonl 2>/dev/null || true
+          while [ ! -e /data/advisory.jsonl ]; do sleep 1; done
+          exec tail -n 0 -F /data/advisory.jsonl
+      volumeMounts:
+        - name: advisory
+          mountPath: /data
+  volumes:
+    - name: advisory
+      hostPath:
+        path: {{ .Values.hostPath.advisoryDir }}
+        type: DirectoryOrCreate
+{{- end }}
+{{- end }}

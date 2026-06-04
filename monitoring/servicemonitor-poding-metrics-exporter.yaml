@@ -1,0 +1,25 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: poding-metrics-exporter
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: poding-metrics-exporter
+    app.kubernetes.io/part-of: poding-monitoring
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - poding-system
+  selector: {}
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      honorLabels: true
+      relabelings:
+        - action: keep
+          sourceLabels:
+            - __meta_kubernetes_service_name
+          regex: poding-metrics-exporter

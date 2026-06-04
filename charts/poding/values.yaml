@@ -1,0 +1,147 @@
+# Pod-ing Helm Chart — 기본값
+# 기존 deploy/ 의 raw 매니페스트를 그대로 재현하면서, 환경마다 달라지는
+# 값(이미지·노드·hostPath·포트)과 컴포넌트 on/off 를 여기서 제어한다.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# -- poding-system 네임스페이스. create=false 면 이미 존재한다고 가정.
+namespace:
+  create: true
+  name: poding-system
+
+# -- 모든 컴포넌트가 공유하는 컨테이너 이미지.
+#    로컬(kind/lab) 빌드 이미지이며 레지스트리에서 pull 하지 않는다.
+image:
+  repository: poding
+  tag: prototype
+  pullPolicy: IfNotPresent
+  # 이미지 내부 코드 경로 (Dockerfile 의 WORKDIR). exporter 를 runFromImage
+  # 모드로 돌릴 때, 노드의 레포 hostPath 대신 이 경로의 코드를 실행한다.
+  workdir: /home/yw/poding
+
+# -- 노드-로컬 파일을 읽고 쓰는 컴포넌트들이 마운트하는 호스트 경로.
+#    detector 가 결과를 쓰고, exporter 들이 같은 경로를 읽는다.
+hostPath:
+  # 호스트의 poding 레포 루트 (observability/, propagation/, results/ 포함)
+  repoRoot: /home/yw/poding
+  # detector 가 latest_*.json 을 쓰는 결과 디렉토리
+  resultsDir: /home/yw/poding/results
+  # propagation-exporter ↔ advisory-shim 이 공유하는 advisory.jsonl 디렉토리
+  advisoryDir: /home/yw/poding/propagation-advisory
+
+# -- 노드 배치. 노드-로컬 파일 공유 때문에 멀티노드 클러스터에선 한 노드에
+#    핀(pin)해야 한다. 단일 노드(로컬 kind 등)에선 enabled=false 로 끄면
+#    nodeSelector/tolerations/nodeName 없이 아무 노드에나 스케줄된다.
+nodePlacement:
+  enabled: true
+  # detector/exporter 가 떠야 하는 노드의 kubernetes.io/hostname
+  hostname: k8s-cp
+  # control-plane 노드에 스케줄하려면 toleration 필요
+  controlPlaneToleration: true
+
+# ───────────────────────── detector ─────────────────────────
+# NFA 상관분석 파이프라인(live/live_pipeline.py). 핵심 컴포넌트.
+detector:
+  enabled: true
+  replicas: 1
+  port: 8080
+  resources: {}
+  # /etc/poding/config.yaml 로 마운트되는 파이프라인 설정.
+  config:
+    falco:
+      namespace: poding-system
+      target: app.kubernetes.io/name=falco
+    hubble:
+      relayServer: hubble-relay.kube-system.svc.cluster.local:80
+      relayNamespace: kube-system
+      relayService: svc/hubble-relay
+      relayLocalPort: "4245"
+      relayRemotePort: "80"
+    pipeline:
+      clusterName: poding-lab
+      resultsDir: ./results
+      runLabel: ""
+      keepLatest: "true"
+      logsDir: logs
+      startupSleep: "3"
+      apiHost: 0.0.0.0
+
+# ──────────────────── metrics exporter ───────────────────────
+# results/latest_*.json → Prometheus 메트릭(/metrics, 9108) 노출.
+metricsExporter:
+  enabled: true
+  port: 9108
+  stalenessSeconds: 300
+  resources: {}
+  # true 면 노드의 레포(hostPath.repoRoot) 대신 이미지 안의 코드로 실행하고,
+  # detector 가 결과를 쓰는 디렉토리(hostPath.resultsDir)만 마운트한다.
+  # 노드에 레포가 없는 환경(기존 kind 클러스터 등)에서 사용.
+  runFromImage: false
+
+# ────────────────── propagation exporter ─────────────────────
+# cross-layer 전파 상태를 UI(propagation/exporter/ui)와 advisory 로 노출.
+propagationExporter:
+  enabled: true
+  port: 9109
+  pollInterval: 5
+  baselineSeconds: 300
+  resources: {}
+  # metricsExporter.runFromImage 와 동일 — 이미지 코드로 실행 + results 만 마운트.
+  runFromImage: false
+  # detector Falco follower 가 집어가는 advisory.jsonl 스트리밍 shim.
+  advisoryShim:
+    enabled: true
+    image: busybox:1.36
+
+# ──────────────────────── image loader ───────────────────────
+# kind/lab 에서 로컬 이미지를 노드 런타임에 적재하기 위한 헬퍼 Pod.
+# 운영 클러스터에서는 보통 불필요하므로 기본 off.
+imageLoader:
+  enabled: false
+
+# ───────────────── 모니터링 연동 (선택) ──────────────────────
+# prometheus-operator CRD(ServiceMonitor) 가 있을 때만 켠다.
+# poding-metrics-exporter(/metrics, 9108)를 스크랩한다.
+serviceMonitor:
+  enabled: false
+  # 비우면 차트 네임스페이스에 생성. kube-prometheus-stack 은 보통 monitoring.
+  namespace: ""
+  # prometheus-operator 가 ServiceMonitor 를 선택하는 release 라벨.
+  releaseLabel: kube-prometheus-stack
+  interval: 15s
+  scrapeTimeout: 10s
+
+# ───────────────── Grafana 관제 대시보드 (선택) ──────────────
+# "관제자는 detector 상태를 UI로 확인할 수 있다" — grafana sidecar 가 라벨로
+# 대시보드/데이터소스 ConfigMap 을 자동 로드한다(kube-prometheus-stack 기본 on).
+# Grafana 가 다른 네임스페이스(monitoring)에 있어도 sidecar 가 전체 NS 를 보면
+# 동작하므로, 보통은 grafana.namespace 를 Grafana 와 같은 곳으로 둔다.
+grafana:
+  # ConfigMap 을 둘 네임스페이스. 비우면 차트 네임스페이스(poding-system).
+  # sidecar 가 특정 NS 만 보도록 설정된 환경이면 monitoring 으로 지정.
+  namespace: ""
+  dashboards:
+    enabled: false
+    folder: "Pod-ing"
+    sidecarLabel: grafana_dashboard
+    sidecarValue: "1"
+  datasources:
+    # flow 시각화용 NodeGraph 데이터소스(attack-graph + 전파 인과).
+    # hamedkarbasi93-nodegraphapi-datasource 플러그인이 Grafana 에 설치돼 있어야 함.
+    enabled: false
+    sidecarLabel: grafana_datasource
+    sidecarValue: "1"
+
+# ───────────────── Hubble UI (네트워크 flow, 선택) ────────────
+# "관제자는 flow를 UI로 확인할 수 있다" — east-west 네트워크 flow 는 Cilium
+# Hubble 이 소관이다. Hubble UI 는 Cilium 측에서 켠다(차트가 배포하지 않음):
+#   cilium hubble enable --ui
+#   # 또는 Cilium Helm: --set hubble.ui.enabled=true --set hubble.relay.enabled=true
+#   cilium hubble ui            # 브라우저로 flow 그래프 열기
+# 아래는 차트가 직접 배포하지 않고 안내(NOTES)만 출력하기 위한 토글.
+hubbleUI:
+  # true 면 helm install 후 NOTES 에 Hubble UI 활성화 안내를 표시.
+  showInstructions: true
+  # cilium CLI 가 바라보는 Hubble relay 네임스페이스/서비스 (안내 문구용)
+  relayNamespace: kube-system

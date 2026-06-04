@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: propagation-exporter
+  namespace: poding-system
+  labels:
+    app: propagation-exporter
+spec:
+  selector:
+    app: propagation-exporter
+  ports:
+    - name: http
+      port: 9109
+      targetPort: 9109

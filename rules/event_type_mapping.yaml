@@ -1,0 +1,101 @@
+version: "0.1"
+
+falco:
+  rules:
+    "Terminal shell in container":
+      event_type: shell_exec
+    "Shell Exec in Container":
+      event_type: shell_exec
+    "Package management process launched in container":
+      event_type: package_install
+    "Read sensitive file untrusted":
+      event_type: service_account_token_access
+    "Read Sensitive File via hostPath":
+      event_type: secret_file_access
+    "Read Kubeconfig via hostPath":
+      event_type: secret_file_access
+    "Service Account Token Access":
+      event_type: service_account_token_access
+    "Contact K8S API Server From Container":
+      event_type: k8s_api_access
+    "Pod-ing K8s API Access from Container":
+      event_type: k8s_api_access
+    "Pod-ing SA Token Read":
+      event_type: service_account_token_access
+    "Netcat Remote Code Execution in Container":
+      event_type: network_tool_exec
+    "Pod-ing Netcat Execution in Container":
+      event_type: network_tool_exec
+    "Pod-ing External Download in Container":
+      event_type: network_tool_exec
+    "Redirect STDOUT/STDIN to Network Connection in Container":
+      event_type: network_tool_exec
+    "Drop and execute new binary in container":
+      event_type: process_exec
+    "Namespace Escape via nsenter":
+      event_type: container_escape
+    "Propagation Received From Suspect":
+      event_type: propagation_received
+    "THEIA Host Network Tool":
+      event_type: network_tool_exec
+    "THEIA Host Credential Read":
+      event_type: secret_file_access
+    "THEIA Host Lateral Inbound":
+      event_type: propagation_received
+
+hubble:
+  conditions:
+    - name: declared_http_auth_bruteforce
+      event_type: http_auth_bruteforce
+      require:
+        declared_event_types: ["http_auth_bruteforce"]
+    - name: declared_couchdb_rce_burst
+      event_type: couchdb_rce_burst
+      require:
+        declared_event_types: ["couchdb_rce_burst"]
+    - name: declared_multi_peer_spread
+      event_type: multi_peer_spread
+      require:
+        declared_event_types: ["multi_peer_spread"]
+    - name: counted_multi_peer_spread
+      event_type: multi_peer_spread
+      require:
+        peer_pod_present: true
+        peer_count_min: 2
+    - name: declared_dns_lookup_burst
+      event_type: dns_lookup_burst
+      require:
+        declared_event_types: ["dns_lookup_burst"]
+    - name: coredns_dns_flow
+      event_type: dns_lookup_burst
+      require:
+        peer_pod_present: true
+        peer_namespace_any_of: ["kube-system"]
+        peer_pod_prefix_any_of: ["coredns"]
+        protocol_any_of: ["UDP", "TCP"]
+        destination_port_any_of: ["53"]
+    - name: cross_namespace_connection
+      event_type: cross_namespace_connection
+      require:
+        peer_pod_present: true
+        peer_namespace_not_in: ["kube-system", "poding-system"]
+        same_namespace: false
+    - name: new_pod_connection
+      event_type: new_pod_connection
+      require:
+        peer_pod_present: true
+        peer_namespace_not_in: ["kube-system", "poding-system"]
+        same_namespace: true
+    - name: external_inbound
+      event_type: external_inbound
+      require:
+        peer_pod_absent: true
+        external_source: true
+        direction_any_of: ["ingress"]
+    - name: external_outbound
+      event_type: external_outbound
+      require:
+        peer_pod_absent: true
+        external_destination: true
+        public_destination: true
+        direction_any_of: ["egress", "unknown"]

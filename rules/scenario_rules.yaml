@@ -1,0 +1,226 @@
+version: "0.2"
+
+defaults:
+  time_window_seconds: 180
+
+rules:
+  - id: http_auth_bruteforce
+    name: HTTP Auth Bruteforce
+    priority: supporting
+    description: High-rate HTTP authentication attempts from one source to one service.
+    tags: ["bruteforce", "network", "lidds"]
+    steps:
+      - id: auth_attempt_burst
+        state: ALERT
+        symbols: ["n_bruteforce"]
+        event_sources: ["hubble"]
+        event_types: ["http_auth_bruteforce"]
+
+  - id: couchdb_rce_burst
+    name: CouchDB RCE Packet Burst
+    priority: supporting
+    description: Sudden high-rate packet burst between a single source and a victim,
+      indicative of post-exploitation channel saturation. LID-DS-only signal —
+      production K8s/Hubble has alternative gates against bulk transfer false positives.
+    tags: ["packet_burst", "network", "lidds"]
+    steps:
+      - id: payload_burst
+        state: ALERT
+        symbols: ["n_payload_burst"]
+        event_sources: ["hubble"]
+        event_types: ["couchdb_rce_burst"]
+
+  - id: container_escape
+    name: Container Escape to Host
+    priority: primary
+    description: A container broke out of its namespace to the host (nsenter/unshare).
+      Terminal-severity — a single-step scenario that goes straight to ALERT, since
+      a successful host escape is itself the incident, not a progression toward one.
+    tags: ["container_escape", "privilege_escalation", "falco"]
+    steps:
+      - id: namespace_escape
+        state: ALERT
+        symbols: ["h"]
+        event_sources: ["falco"]
+
+  - id: lateral_movement_via_api
+    name: Lateral Movement via Kubernetes API
+    priority: primary
+    description: Container shell access followed by Kubernetes API usage and east-west propagation.
+    tags: ["lateral_movement", "falco", "hubble"]
+    steps:
+      - id: foothold_shell
+        state: RECON
+        symbols: ["s_shell"]
+        event_sources: ["falco"]
+      - id: api_access
+        state: CRED
+        symbols: ["k_api_connect", "k_api_auth", "k_api_enum"]
+        event_sources: ["falco"]
+      - id: east_west_propagation
+        state: LATERAL
+        symbols: ["E_same_ns", "E_cross_ns"]
+        event_sources: ["hubble"]
+
+  - id: recon_and_lateral
+    name: Recon to Lateral Movement
+    priority: primary
+    description: Container runtime activity, Kubernetes credential collection, Kubernetes API access, and east-west propagation.
+    tags: ["lateral_movement", "credential_access"]
+    steps:
+      - id: shell_access
+        state: RECON
+        symbols: ["s_shell", "n_tool", "n_remote_io", "n_scan"]
+      - id: credential_access
+        state: CRED
+        symbols: ["c_sa_token", "c_secret", "c_kubeconfig"]
+      - id: api_access
+        state: CRED
+        symbols: ["k_api_connect", "k_api_auth", "k_api_enum"]
+      - id: east_west_propagation
+        state: LATERAL
+        symbols: ["E_same_ns", "E_cross_ns"]
+        event_sources: ["hubble"]
+
+  # external_intrusion_lateral remains disabled in active rules: it was the
+  # only scenario founded on a network symbol (X_external_inbound). External
+  # inbound is ungated, so every externally reachable pod can match step0 and
+  # be elevated to RECON, flooding detection summaries and propagation graphs
+  # with infrastructure false positives. FSM paths must be founded by the
+  # pod's own behavior (s_shell/n_tool/n_remote_io/b_drop_exec/c_*) or by the
+  # gated cross-entity symbol R_propagation_received. The behavioral chain that
+  # follows an external intrusion is still covered by recon_and_lateral.
+
+  - id: credential_theft_exfil
+    name: Credential Theft with Exfiltration
+    priority: supporting
+    description: Runtime activity followed by Kubernetes credential or secret access and external outbound evidence.
+    tags: ["credential_theft", "data_exfiltration"]
+    steps:
+      - id: runtime_execution
+        state: RECON
+        symbols: ["s_shell", "n_tool", "n_remote_io", "n_scan"]
+      - id: credential_access
+        state: CRED
+        symbols: ["c_sa_token", "c_secret", "c_kubeconfig"]
+      - id: outbound_transfer
+        state: ALERT
+        symbols: ["O_external"]
+        event_sources: ["hubble"]
+
+  - id: credential_theft_network
+    name: Credential Theft with Network Tool Usage
+    priority: supporting
+    description: Shell execution followed by Kubernetes credential or secret access and network tooling.
+    tags: ["credential_theft"]
+    steps:
+      - id: runtime_execution
+        state: RECON
+        symbols: ["s_shell"]
+      - id: credential_access
+        state: CRED
+        symbols: ["c_sa_token", "c_secret", "c_kubeconfig"]
+      - id: network_tooling
+        state: ALERT
+        symbols: ["n_tool", "n_scan", "n_remote_io"]
+        event_sources: ["falco"]
+
+  - id: data_exfiltration
+    name: Data Exfiltration
+    priority: supporting
+    description: Kubernetes credential or secret access followed by external outbound transfer from the same pod.
+    tags: ["data_exfiltration"]
+    steps:
+      - id: credential_access
+        state: CRED
+        symbols: ["c_sa_token", "c_secret", "c_kubeconfig"]
+      - id: outbound_transfer
+        state: ALERT
+        symbols: ["O_external"]
+        event_sources: ["hubble"]
+
+  - id: remote_io_external_egress
+    name: Remote I/O with External Egress
+    priority: supporting
+    description: Remote I/O or reverse-shell style network execution followed by public external outbound connectivity.
+    tags: ["remote_io", "external_egress"]
+    steps:
+      - id: remote_io_execution
+        state: RECON
+        symbols: ["n_remote_io"]
+      - id: outbound_connection
+        state: ALERT
+        symbols: ["O_external"]
+        event_sources: ["hubble"]
+
+  - id: privilege_escalation_path
+    name: Privilege Escalation Path
+    priority: supporting
+    description: Secret or kubeconfig access followed by dropped binary execution that may indicate privilege escalation preparation.
+    tags: ["privilege_escalation"]
+    steps:
+      - id: credential_access
+        state: CRED
+        symbols: ["c_secret", "c_kubeconfig"]
+      - id: binary_execution
+        state: ALERT
+        symbols: ["b_drop_exec"]
+        event_sources: ["falco"]
+
+  - id: dropped_binary_external_egress
+    name: Dropped Binary with External Egress
+    priority: supporting
+    description: Dropped binary execution followed by public external outbound communication.
+    tags: ["dropped_binary", "external_egress"]
+    steps:
+      - id: binary_execution
+        state: RECON
+        symbols: ["b_drop_exec"]
+      - id: outbound_pool_connection
+        state: ALERT
+        symbols: ["O_external"]
+        event_sources: ["hubble"]
+
+  - id: theia_host_lateral_inbound
+    name: THEIA Host-Audit Lateral Inbound
+    priority: primary
+    description: THEIA CDM host-audit trace — lateral inbound from a known
+      remote host endpoint followed by host-audit recon, credential, or
+      network-tool activity on the target host. Fixed NFA rule used for
+      DARPA TC E5 THEIA attack/control window separation; not a Kubernetes
+      pod-to-pod claim.
+    tags: ["lateral_movement", "theia", "host_audit"]
+    steps:
+      - id: lateral_inbound
+        state: LATERAL
+        symbols: ["R_host_lateral_received"]
+        event_sources: ["falco"]
+      - id: host_activity
+        state: ALERT
+        symbols:
+          - "s_shell"
+          - "n_ssh_tool"
+          - "n_scp_transfer"
+          - "n_scan"
+          - "c_host_credential"
+          - "c_ssh_private_key"
+        event_sources: ["falco"]
+
+  - id: cross_layer_propagation_target
+    name: Cross-Layer Propagation Target
+    priority: primary
+    description: Pod was identified as a propagation target by the cross-layer
+      causal grader (received an edge whose source was already matched and whose
+      flow deviated from baseline) and subsequently exhibits its own runtime
+      activity. Implements the "B remembers it was infected" insight by treating
+      cross-layer feedback as a first-class FSM symbol.
+    tags: ["lateral_movement", "cross_layer", "causal_propagation"]
+    steps:
+      - id: propagation_received
+        state: LATERAL
+        symbols: ["R_propagation_received"]
+        event_sources: ["falco"]
+      - id: target_runtime_activity
+        state: ALERT
+        symbols: ["s_shell", "n_remote_io", "b_drop_exec", "k_api_connect", "k_api_auth", "k_api_enum"]
+        event_sources: ["falco"]

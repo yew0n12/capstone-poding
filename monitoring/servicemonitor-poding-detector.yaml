@@ -1,0 +1,29 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: poding-detector
+  namespace: monitoring
+  annotations:
+    poding.io/disabled-reason: "poding-detector does not expose /metrics; use poding-metrics-exporter instead."
+  labels:
+    app.kubernetes.io/name: poding-detector
+    app.kubernetes.io/part-of: poding-monitoring
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - poding-system
+  selector:
+    matchLabels:
+      poding.io/metrics-target: disabled
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      honorLabels: true
+      relabelings:
+        - action: keep
+          sourceLabels:
+            - __meta_kubernetes_service_name
+          regex: poding-detector

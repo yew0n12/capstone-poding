@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-propagation-datasource
+  namespace: monitoring
+  labels:
+    grafana_datasource: "1"
+    app.kubernetes.io/name: grafana-propagation-datasource
+    app.kubernetes.io/part-of: poding-monitoring
+data:
+  propagation-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: PropagationCausal
+        uid: propagation-causal
+        type: hamedkarbasi93-nodegraphapi-datasource
+        access: proxy
+        url: http://propagation-exporter.poding-system.svc.cluster.local:9109
+        jsonData:
+          url: http://propagation-exporter.poding-system.svc.cluster.local:9109
+        isDefault: false
+        editable: true

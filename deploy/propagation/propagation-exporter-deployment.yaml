@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: propagation-exporter
+  namespace: poding-system
+  labels:
+    app: propagation-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: propagation-exporter
+  template:
+    metadata:
+      labels:
+        app: propagation-exporter
+    spec:
+      # Reads the same hostPath the detector writes to, so it must run on
+      # the same node as the detector.
+      nodeSelector:
+        kubernetes.io/hostname: k8s-cp
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: exporter
+          # Reuse the existing poding image — no extra dependencies needed
+          # because the server uses Python's stdlib http.server.
+          image: poding:prototype
+          imagePullPolicy: IfNotPresent
+          command:
+            - python3
+            - /home/yw/poding/propagation/exporter/server.py
+          env:
+            - name: PROPAGATION_RESULTS_DIR
+              value: /home/yw/poding/results
+            - name: PROPAGATION_UI_DIR
+              value: /home/yw/poding/propagation/exporter/ui
+            - name: PROPAGATION_PORT
+              value: "9109"
+            - name: PROPAGATION_POLL_INTERVAL
+              value: "5"
+            - name: PROPAGATION_BASELINE_SECONDS
+              value: "300"
+            - name: PROPAGATION_ADVISORY_FILE
+              value: /var/lib/propagation/advisory.jsonl
+            - name: PROPAGATION_ADVISORY_HOST
+              value: propagation-advisory-shim
+          ports:
+            - name: http
+              containerPort: 9109
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9109
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 9109
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          volumeMounts:
+            - name: poding-workdir
+              mountPath: /home/yw/poding
+              readOnly: true
+            - name: advisory-out
+              mountPath: /var/lib/propagation
+      volumes:
+        - name: poding-workdir
+          hostPath:
+            path: /home/yw/poding
+            type: Directory
+        - name: advisory-out
+          hostPath:
+            # Same dir the advisory-shim pod tails (mounted at /data there).
+            path: /home/yw/poding/propagation-advisory
+            type: DirectoryOrCreate

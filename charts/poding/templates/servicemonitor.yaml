@@ -1,0 +1,29 @@
+{{- if and .Values.serviceMonitor.enabled .Values.metricsExporter.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: poding-metrics-exporter
+  namespace: {{ default (include "poding.namespace" .) .Values.serviceMonitor.namespace }}
+  labels:
+    {{- include "poding.labels" . | nindent 4 }}
+    app.kubernetes.io/part-of: poding-monitoring
+    release: {{ .Values.serviceMonitor.releaseLabel }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ include "poding.namespace" . }}
+  selector:
+    matchLabels:
+      app: poding-metrics-exporter
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: {{ .Values.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.serviceMonitor.scrapeTimeout }}
+      honorLabels: true
+      relabelings:
+        - action: keep
+          sourceLabels:
+            - __meta_kubernetes_service_name
+          regex: poding-metrics-exporter
+{{- end }}

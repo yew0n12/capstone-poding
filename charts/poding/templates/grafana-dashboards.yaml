@@ -1,0 +1,27 @@
+{{- if .Values.grafana.dashboards.enabled }}
+{{- /*
+  dashboards/ 의 각 JSON 을 grafana sidecar 가 발견하는 ConfigMap 으로 만든다.
+  grafana_dashboard 라벨이 핵심 — kube-prometheus-stack 의 sidecar 가 이 라벨을
+  가진 ConfigMap 을 자동으로 Grafana 에 로드한다.
+*/}}
+{{- $root := . }}
+{{- range $path, $_ := .Files.Glob "dashboards/*.json" }}
+{{- /* 파일명이 이미 poding- 로 시작하므로 중복 접두 방지 */}}
+{{- $base := base $path | trimSuffix ".json" }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-dashboard" $base }}
+  namespace: {{ default (include "poding.namespace" $root) $root.Values.grafana.namespace }}
+  labels:
+    {{- include "poding.labels" $root | nindent 4 }}
+    {{ $root.Values.grafana.dashboards.sidecarLabel }}: {{ $root.Values.grafana.dashboards.sidecarValue | quote }}
+    app.kubernetes.io/part-of: poding-monitoring
+  annotations:
+    grafana_folder: {{ $root.Values.grafana.dashboards.folder | quote }}
+data:
+  {{ base $path }}: |-
+{{ $root.Files.Get $path | indent 4 }}
+{{- end }}
+{{- end }}

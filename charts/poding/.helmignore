@@ -1,0 +1,10 @@
+# 차트 패키징 시 제외할 패턴
+.DS_Store
+.git/
+.gitignore
+*.tmproj
+*.bak
+*.orig
+*.swp
+.idea/
+.vscode/

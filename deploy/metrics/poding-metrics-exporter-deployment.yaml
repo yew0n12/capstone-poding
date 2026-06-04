@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: poding-metrics-exporter
+  namespace: poding-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: poding-metrics-exporter
+  template:
+    metadata:
+      labels:
+        app: poding-metrics-exporter
+    spec:
+      # The exporter reads node-local files under /home/yw/poding.
+      # Therefore it must run on the same node where the detector writes results/latest_*.json.
+      nodeName: k8s-cp
+
+      containers:
+        - name: exporter
+          # Local practice image. This image must exist in the k8s-cp container runtime.
+          # It is not pulled from Docker Hub.
+          image: poding:prototype
+          imagePullPolicy: IfNotPresent
+
+          # The repository is mounted from the k8s-cp host into the container,
+          # so run the exporter script using an absolute path.
+          command:
+            - python3
+            - /home/yw/poding/observability/poding_metrics_exporter.py
+
+          args:
+            - "--results-dir"
+            - "/home/yw/poding/results"
+            - "--listen-port"
+            - "9108"
+            - "--staleness-seconds"
+            - "300"
+
+          ports:
+            - name: metrics
+              containerPort: 9108
+              protocol: TCP
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 1
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 1
+            failureThreshold: 3
+
+          volumeMounts:
+            - name: poding-workdir
+              mountPath: /home/yw/poding
+
+      volumes:
+        - name: poding-workdir
+          hostPath:
+            # Must point to the repository path on k8s-cp.
+            # This includes observability/poding_metrics_exporter.py and results/latest_*.json.
+            path: /home/yw/poding
+            type: Directory

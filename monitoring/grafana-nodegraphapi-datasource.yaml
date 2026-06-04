@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-nodegraphapi-datasource
+  namespace: monitoring
+  labels:
+    grafana_datasource: "1"
+    app.kubernetes.io/name: grafana-nodegraphapi-datasource
+    app.kubernetes.io/part-of: poding-monitoring
+data:
+  nodegraphapi-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: NodeGraphAPI
+        uid: nodegraphapi
+        type: hamedkarbasi93-nodegraphapi-datasource
+        access: proxy
+        url: http://poding-metrics-exporter.poding-system.svc.cluster.local:9108
+        jsonData:
+          url: http://poding-metrics-exporter.poding-system.svc.cluster.local:9108
+        isDefault: false
+        editable: true

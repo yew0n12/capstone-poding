@@ -1,0 +1,32 @@
+{{- if .Values.imageLoader.enabled }}
+# kind/lab 에서 로컬 이미지를 노드 컨테이너 런타임에 적재하기 위한 헬퍼.
+# privileged + hostPID + host root 마운트가 필요하므로 기본 off.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: poding-image-loader
+  namespace: {{ include "poding.namespace" . }}
+  labels:
+    {{- include "poding.labels" . | nindent 4 }}
+spec:
+  restartPolicy: Never
+  hostPID: true
+  {{- if .Values.nodePlacement.enabled }}
+  nodeName: {{ .Values.nodePlacement.hostname }}
+  {{- end }}
+  containers:
+    - name: loader
+      image: {{ include "poding.image" . }}
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      command: ["sh", "-c", "sleep 3600"]
+      securityContext:
+        privileged: true
+      volumeMounts:
+        - name: host-root
+          mountPath: /host
+  volumes:
+    - name: host-root
+      hostPath:
+        path: /
+        type: Directory
+{{- end }}

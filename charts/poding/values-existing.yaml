@@ -1,0 +1,53 @@
+# 이미 detector 가 돌고 있는 클러스터에 "관제만" 추가하는 values.
+# 사용: scripts/local/observability-up.sh 가 detector 노드·결과경로를 감지해
+#       이 파일 + --set 으로 적용한다. (직접 쓰면 hostPath.resultsDir·
+#       nodePlacement.hostname 을 그 클러스터에 맞게 --set 으로 줘야 함)
+
+# 네임스페이스는 이미 존재(detector 가 거기 있음) → 새로 만들지 않는다.
+namespace:
+  create: false
+  name: poding-system
+
+# 노드에 이미 이미지가 있다(detector 가 그걸로 도는 중) → pull 안 함.
+image:
+  pullPolicy: IfNotPresent
+
+# detector 는 이미 raw 매니페스트로 떠 있으므로 차트가 또 만들지 않는다.
+detector:
+  enabled: false
+
+# exporter 는 노드에 레포가 없어도 되게 이미지 코드로 실행 + results 만 마운트.
+metricsExporter:
+  enabled: true
+  runFromImage: true
+propagationExporter:
+  enabled: true
+  runFromImage: true
+  advisoryShim:
+    enabled: true
+
+imageLoader:
+  enabled: false
+
+# exporter 는 detector 와 같은 노드여야 results hostPath 를 읽는다.
+# hostname 은 스크립트가 detector 노드를 감지해 --set 으로 주입한다.
+nodePlacement:
+  enabled: true
+  controlPlaneToleration: true
+  # hostname: <스크립트가 주입>
+
+# 관제 UI — Grafana 대시보드/데이터소스를 monitoring(=grafana) 네임스페이스에.
+grafana:
+  namespace: monitoring
+  dashboards:
+    enabled: true
+  datasources:
+    enabled: true
+
+serviceMonitor:
+  enabled: true
+  releaseLabel: kube-prometheus-stack
+
+hubbleUI:
+  showInstructions: true
+  relayNamespace: kube-system

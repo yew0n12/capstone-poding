@@ -1,0 +1,58 @@
+{{- if .Values.grafana.datasources.enabled }}
+{{- $ns := default (include "poding.namespace" .) .Values.grafana.namespace }}
+{{- /*
+  flow 시각화용 NodeGraph 데이터소스. grafana_datasource 라벨로 sidecar 가 로드.
+  - NodeGraphAPI    : metrics-exporter(:9108) → attack-graph node/edge flow
+  - PropagationCausal: propagation-exporter(:9109) → cross-layer 전파 인과 flow
+  둘 다 hamedkarbasi93-nodegraphapi-datasource 플러그인이 Grafana 에 필요하다.
+*/}}
+{{- if .Values.metricsExporter.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-nodegraphapi-datasource
+  namespace: {{ $ns }}
+  labels:
+    {{- include "poding.labels" . | nindent 4 }}
+    {{ .Values.grafana.datasources.sidecarLabel }}: {{ .Values.grafana.datasources.sidecarValue | quote }}
+    app.kubernetes.io/part-of: poding-monitoring
+data:
+  nodegraphapi-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: NodeGraphAPI
+        uid: nodegraphapi
+        type: hamedkarbasi93-nodegraphapi-datasource
+        access: proxy
+        url: http://poding-metrics-exporter.{{ include "poding.namespace" . }}.svc.cluster.local:{{ .Values.metricsExporter.port }}
+        jsonData:
+          url: http://poding-metrics-exporter.{{ include "poding.namespace" . }}.svc.cluster.local:{{ .Values.metricsExporter.port }}
+        isDefault: false
+        editable: true
+{{- end }}
+{{- if .Values.propagationExporter.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-propagation-datasource
+  namespace: {{ $ns }}
+  labels:
+    {{- include "poding.labels" . | nindent 4 }}
+    {{ .Values.grafana.datasources.sidecarLabel }}: {{ .Values.grafana.datasources.sidecarValue | quote }}
+    app.kubernetes.io/part-of: poding-monitoring
+data:
+  propagation-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: PropagationCausal
+        uid: propagation-causal
+        type: hamedkarbasi93-nodegraphapi-datasource
+        access: proxy
+        url: http://propagation-exporter.{{ include "poding.namespace" . }}.svc.cluster.local:{{ .Values.propagationExporter.port }}
+        jsonData:
+          url: http://propagation-exporter.{{ include "poding.namespace" . }}.svc.cluster.local:{{ .Values.propagationExporter.port }}
+        isDefault: false
+        editable: true
+{{- end }}
+{{- end }}

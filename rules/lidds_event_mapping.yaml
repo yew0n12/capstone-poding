@@ -1,0 +1,110 @@
+# LID-DS 2021 replay adapter 설정.
+#
+# 이 파일은 parsers/replay/lidds_adapter.py 가 읽는다. event_type_mapping.yaml
+# 과 역할이 다르다.
+#   - event_type_mapping.yaml: Falco rule_name → 엔진 event_type (엔진이 읽음)
+#   - lidds_event_mapping.yaml: LID-DS syscall 패턴 → Falco rule_name (어댑터가 읽음)
+#
+# 즉 LID-DS 원시 syscall 을 엔진이 이미 알고 있는 Falco rule_name 으로 위장시켜
+# 전달한다. 엔진은 입력이 LID-DS 인지 실제 Falco 인지 모르게 동작.
+
+version: "0.2"
+
+# 합성된 K8s 컨텍스트 (LID-DS 자체는 Docker 시나리오)
+namespace_template: "lidds-{scenario}"
+node_name: "lidds-host"
+
+# syscall name (entry-direction '>' 한정) → Falco rule_name 매핑.
+#
+# 두 가지 스키마 지원 (adapter._match_syscall_rule 참고):
+#   1) 단순 형태:        syscall_name: "Falco Rule Name"
+#   2) 조건부 매칭 형태:  syscall_name:
+#                          - when:
+#                              proc_name_any_of: ["sh", "bash"]
+#                              filename_prefix_any_of: ["/var/run/secrets/"]
+#                            rule: "Falco Rule Name"
+#                            direction: ">"   # 생략시 '>' (entry)
+#                          - rule: "fallback rule"   # when 생략 = 항상 매치
+#
+# 조건부 매칭은 위에서부터 첫 번째 매치를 사용한다. when 의 모든 조건은 AND.
+# 지원 조건:
+#   - proc_name_any_of: List[str]
+#   - filename_prefix_any_of: List[str]    # params.filename 또는 params.name prefix
+#
+# direction: '>' (entry, 기본) 또는 '<' (exit). LID-DS .sc 포맷에서 open/openat
+# 같은 path 인자 syscall 은 params 가 exit 쪽에만 붙는다. 같은 syscall 의
+# entry/exit 두 줄을 모두 매핑하면 중복 카운트되므로 direction 을 명시해 한 쪽만
+# 잡는다.
+#
+# rule_name 은 rules/event_type_mapping.yaml 에 등록된 값이어야 엔진이 처리한다.
+#
+# Nginx CVE-2017-7529 실측 (2026-05-18):
+#   .sc 추적 대상이 victim nginx worker 1프로세스라 execve/fork/clone 0건.
+#   network 측 신호만 사용.
+#
+# PHP_CWE-434 실측 (2026-05-19):
+#   attack `.sc`에 execve 16건 — 그 중 4건이 proc.name=sh 로 wget/id/uname spawn.
+#   normal `.sc`에는 execve 0건. proc.name 필터로 apache2 자체의 execve(<NA>)는 제외.
+#   → 이 매핑이 normal 에서는 0회, attack 에서는 4회 부근 발화 기대.
+#
+# open/write/rename 계열은 normal 에도 다량 존재 (PHP normal: open=1899)하므로
+# 매핑하지 않는다. file I/O 기반 시나리오 (Juice-Shop 등) 는 별도 정밀 매처가
+# 준비된 뒤 추가할 것.
+#
+# Bruteforce_CWE-307 실측 (2026-05-19, test split 전체):
+#   victim:443 ingress 에서 per-source/per-second packet burst 가 attack 과 normal
+#   을 깔끔하게 분리한다. max_src_sec 기준 normal max=68, attack min=77.
+#   production Hubble 에는 HTTP auth 실패 내용이 없으므로 LID-DS pcap 평가용
+#   aggregate event 로만 사용한다.
+#
+# CVE-2017-12635_6 실측 (2026-05-20, test split 표본 20건):
+#   CouchDB RCE 이후 attacker↔victim 가 ephemeral high port 로 packet 폭주.
+#   per-source/per-second packet count 가 normal max=147, attack min=33,984 으로
+#   230배 분리. dst_port 는 매번 다른 random port 라 port 제약을 두면 일부 attack
+#   recording 을 놓침. 따라서 destination_ports: [] (any port) + threshold=200 으로
+#   설정한다. 이 신호는 production K8s 에서 정상 burst (websocket, 대용량 응답
+#   등) 와 구분 못 하므로 LID-DS 평가 전용 aggregate event 로만 사용한다.
+packet_aggregate_rules:
+  http_auth_bruteforce:
+    enabled: true
+    event_type: "http_auth_bruteforce"
+    rule_name: "LID-DS HTTP Auth Bruteforce"
+    protocol: "TCP"
+    destination_ports: [443]
+    threshold_per_source_second: 100
+
+  couchdb_rce_burst:
+    enabled: true
+    event_type: "couchdb_rce_burst"
+    rule_name: "LID-DS CouchDB RCE Packet Burst"
+    protocol: "TCP"
+    destination_ports: []   # any dst_port (reverse-shell ephemeral port)
+    threshold_per_source_second: 200
+
+syscall_rule_map:
+  execve:
+    - when:
+        proc_name_any_of: ["sh", "bash", "ash", "dash", "zsh"]
+      rule: "Shell Exec in Container"
+
+  # Sensitive file read 매핑 — exit('<') direction 의 name= 필드 사용.
+  #
+  # PHP_CWE-434 실측 (2026-05-19, 5건 표본): attack 에서만 wget/id 가
+  # /etc/passwd 를 읽음 (20건). normal 에서는 같은 파일을 apache2 자체만 읽으므로
+  # proc_name 필터로 정상 트래픽과 분리된다 (apache2 normal 2531건 vs 0건 매칭).
+  #
+  # CVE-2017-12635_6 실측: attack 에서만 bash 가 /etc/passwd 를 읽음 (12건).
+  # normal 에서는 sensitive file read 0건.
+  #
+  # Juice-Shop 은 attack/normal 모두 /etc 계열 sensitive read 0건이라 이 매핑으론
+  # 신호가 안 잡힌다 (별도 작업으로 file tampering 매처가 필요).
+  open:
+    - when:
+        proc_name_any_of: ["sh", "bash", "ash", "dash", "zsh",
+                           "wget", "curl", "id", "cat", "nc", "ncat",
+                           "python", "python3", "perl", "ruby"]
+        filename_prefix_any_of: ["/etc/passwd", "/etc/shadow", "/etc/gshadow",
+                                 "/etc/kubernetes/", "/var/run/secrets/",
+                                 "/root/.ssh/"]
+      rule: "Read sensitive file untrusted"
+      direction: "<"

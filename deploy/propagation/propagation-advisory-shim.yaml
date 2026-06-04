@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: propagation-advisory-shim
+  namespace: poding-system
+  labels:
+    # IMPORTANT: this label is what makes the existing detector Falco follower
+    # pick this pod up automatically (selector is app.kubernetes.io/name=falco
+    # and container -c falco). The shim tails advisory.jsonl produced by
+    # propagation-exporter; each line is already in Falco JSON shape so the
+    # detector parses it like a real Falco event for the target pod.
+    app.kubernetes.io/name: falco
+    app: propagation-advisory-shim
+    role: cross-layer-feedback
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: k8s-cp
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+  restartPolicy: Always
+  containers:
+    - name: falco            # detector reads kubectl logs ... -c falco
+      image: busybox:1.36
+      imagePullPolicy: IfNotPresent
+      command:
+        - sh
+        - -c
+        - |
+          set -e
+          mkdir -p /data
+          : > /data/advisory.jsonl 2>/dev/null || true
+          # Wait for the file to exist, then stream it as Falco-shaped lines.
+          while [ ! -e /data/advisory.jsonl ]; do sleep 1; done
+          exec tail -n 0 -F /data/advisory.jsonl
+      volumeMounts:
+        - name: advisory
+          mountPath: /data
+  volumes:
+    - name: advisory
+      hostPath:
+        path: /home/yw/poding/propagation-advisory
+        type: DirectoryOrCreate

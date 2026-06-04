@@ -1,0 +1,378 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pod-ing Correlation Result Schema",
+  "description": "Output schema for the Falco + Hubble + FSM correlation engine for ongoing lateral movement detection.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "result_id",
+    "generated_at",
+    "detection_scope",
+    "fsm",
+    "evidence",
+    "graph"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.2.0"
+    },
+    "result_id": {
+      "type": "string"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "detection_scope": {
+      "type": "object",
+      "required": ["cluster_name", "entity_type", "entity_id"],
+      "properties": {
+        "cluster_name": {
+          "type": "string"
+        },
+        "entity_type": {
+          "type": "string",
+          "enum": ["pod", "namespace", "workload", "attack_chain"]
+        },
+        "entity_id": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "workload_name": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "fsm": {
+      "type": "object",
+      "required": [
+        "execution_model",
+        "current_state",
+        "active_states",
+        "candidate_next_states",
+        "active_partial_match_count",
+        "completed_detection_count",
+        "ongoing_detection",
+        "transition_trigger"
+      ],
+      "properties": {
+        "execution_model": {
+          "type": "string",
+          "const": "nfa"
+        },
+        "current_state": {
+          "type": "string",
+          "enum": ["IDLE", "RECON", "CRED", "LATERAL", "ALERT"]
+        },
+        "previous_state": {
+          "type": "string",
+          "enum": ["IDLE", "RECON", "CRED", "LATERAL", "ALERT"]
+        },
+        "active_states": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["RECON", "CRED", "LATERAL", "ALERT"]
+          }
+        },
+        "candidate_next_states": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["RECON", "CRED", "LATERAL", "ALERT"]
+          }
+        },
+        "active_partial_match_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "completed_detection_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ongoing_detection": {
+          "type": "boolean"
+        },
+        "transition_trigger": {
+          "type": "string"
+        },
+        "last_transition_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["time_window", "source_events"],
+      "properties": {
+        "time_window": {
+          "type": "object",
+          "required": ["start", "end", "window_seconds"],
+          "properties": {
+            "start": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "end": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "window_seconds": {
+              "type": "integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        "source_events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["event_id", "event_source", "observed_at"],
+            "properties": {
+              "event_id": {
+                "type": "string"
+              },
+              "event_source": {
+                "type": "string",
+                "enum": ["falco", "hubble"]
+              },
+              "observed_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "role": {
+                "type": "string",
+                "enum": ["trigger", "supporting", "propagation"]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "matched_rules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "matched_flow_patterns": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "correlation_dimensions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["time", "entity", "sequence", "propagation"]
+          }
+        },
+        "correlation_keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "key_match_summary": {
+          "type": "object",
+          "properties": {
+            "primary_entity_key": {
+              "type": "string"
+            },
+            "namespace_key": {
+              "type": "string"
+            },
+            "node_key": {
+              "type": "string"
+            },
+            "workload_key": {
+              "type": "string"
+            },
+            "peer_entity_key": {
+              "type": "string"
+            },
+            "matched_key_types": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "same_pod",
+                  "same_namespace",
+                  "same_node",
+                  "same_workload",
+                  "same_pod_ip",
+                  "new_peer_pod",
+                  "workload_adjacency"
+                ]
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      ,
+        "state_trace": {
+          "type": "array",
+          "description": "Time-ordered explanation of how this Pod FSM reached the current state without state jumps.",
+          "items": {
+            "type": "object",
+            "required": [
+              "step",
+              "from_state",
+              "to_state",
+              "observed_at",
+              "event_id",
+              "event_source",
+              "reason"
+            ],
+            "properties": {
+              "step": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "from_state": {
+                "type": "string",
+                "enum": ["IDLE", "RECON", "CRED", "LATERAL", "ALERT"]
+              },
+              "to_state": {
+                "type": "string",
+                "enum": ["IDLE", "RECON", "CRED", "LATERAL", "ALERT"]
+              },
+              "observed_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "event_id": {
+                "type": "string"
+              },
+              "event_source": {
+                "type": "string",
+                "enum": ["falco", "hubble"]
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "active_partial_matches": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "detections": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "primary_detection": {
+          "type": "object"
+        },
+        "explanation": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "graph": {
+      "type": "object",
+      "required": ["nodes", "edges"],
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "label", "type", "state"],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": ["pod", "node", "namespace", "workload"]
+              },
+              "state": {
+                "type": "string",
+                "enum": ["IDLE", "RECON", "CRED", "LATERAL", "ALERT"]
+              },
+              "progress_ratio": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "is_entrypoint": {
+                "type": "boolean"
+              },
+              "is_active_spread_node": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "source", "target", "edge_type"],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "edge_type": {
+                "type": "string",
+                "enum": ["network_flow", "suspected_propagation"]
+              },
+              "observed_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "is_new_connection": {
+                "type": "boolean"
+              },
+              "is_active_path": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "alert": {
+      "type": "object",
+      "properties": {
+        "severity": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "message": {
+          "type": "string"
+        },
+        "recommended_action": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

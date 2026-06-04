@@ -1,0 +1,79 @@
+{{- if .Values.detector.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: poding-detector
+  namespace: {{ include "poding.namespace" . }}
+  labels:
+    {{- include "poding.labels" . | nindent 4 }}
+    app: poding-detector
+spec:
+  replicas: {{ .Values.detector.replicas }}
+  selector:
+    matchLabels:
+      app: poding-detector
+  template:
+    metadata:
+      labels:
+        app: poding-detector
+    spec:
+      serviceAccountName: poding-detector
+      {{- include "poding.nodePlacement" . | nindent 6 }}
+      containers:
+        - name: detector
+          image: {{ include "poding.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python3", "live/live_pipeline.py"]
+          env:
+            - name: PODING_CONFIG
+              value: /etc/poding/config.yaml
+          ports:
+            - name: http
+              containerPort: {{ .Values.detector.port }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          {{- with .Values.detector.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/poding/config.yaml
+              subPath: config.yaml
+            - name: poding-results
+              mountPath: {{ .Values.hostPath.resultsDir }}
+      volumes:
+        - name: config
+          configMap:
+            name: poding-config
+        - name: poding-results
+          hostPath:
+            path: {{ .Values.hostPath.resultsDir }}
+            type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: poding-detector
+  namespace: {{ include "poding.namespace" . }}
+  labels:
+    {{- include "poding.labels" . | nindent 4 }}
+    app: poding-detector
+spec:
+  selector:
+    app: poding-detector
+  ports:
+    - name: http
+      port: {{ .Values.detector.port }}
+      targetPort: http
+{{- end }}

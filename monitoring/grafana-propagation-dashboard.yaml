@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-propagation-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/name: grafana-propagation-dashboard
+    app.kubernetes.io/part-of: poding-monitoring
+data:
+  propagation-causal-graph.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "graphTooltip": 0,
+      "id": null,
+      "uid": "propagation-causal",
+      "title": "Pod-ing Attack Propagation",
+      "tags": ["poding", "propagation", "causal", "fsm"],
+      "timezone": "browser",
+      "schemaVersion": 38,
+      "version": 1,
+      "refresh": "10s",
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "type": "nodeGraph",
+          "title": "Poding Correlation Node Graph",
+          "description": "Default NodeGraphAPI view uses latest_correlation.json, latest_detection_summary.json, and latest_debug_summary.json from poding-detector. It does not render direct raw Hubble flow.",
+          "datasource": { "type": "hamedkarbasi93-nodegraphapi-datasource", "uid": "propagation-causal" },
+          "gridPos": { "x": 0, "y": 0, "w": 24, "h": 14 },
+          "options": {},
+          "targets": [{ "queryType": "graph", "refId": "A" }]
+        },
+        {
+          "id": 2,
+          "type": "text",
+          "title": "Cytoscape view (full evidence + drill-down)",
+          "gridPos": { "x": 0, "y": 14, "w": 24, "h": 14 },
+          "options": {
+            "mode": "html",
+            "content": "<iframe src=\"http://propagation-exporter.poding-system.svc.cluster.local:9109/\" style=\"width:100%;height:100%;border:0;background:#0f1115;\"></iframe><p style=\"color:#888;font-size:12px\">If the iframe is empty, the propagation-exporter Service may not be reachable from your browser. Use <code>kubectl port-forward -n poding-system svc/propagation-exporter 9109:9109</code> and open <a href=\"http://127.0.0.1:9109/\">http://127.0.0.1:9109/</a> instead.</p>"
+          }
+        },
+        {
+          "id": 3,
+          "type": "text",
+          "title": "Graph meaning",
+          "gridPos": { "x": 0, "y": 28, "w": 24, "h": 6 },
+          "options": {
+            "mode": "markdown",
+            "content": "**Source of truth** — `results/latest_correlation.json`, `latest_detection_summary.json`, and `latest_debug_summary.json` from poding-detector.\n\n**Nodes** — Pods colored by FSM/threat state: IDLE/normal blue, RECON/suspect yellow, CRED/risk orange, LATERAL/propagation red, ALERT dark red.\n\n**Edges** — Detector correlation/propagation relations. Red means confirmed correlation around the primary suspect, orange means related or partial relation, gray means observed relation in the correlation graph.\n\nDirect Hubble subscriber output is available only for troubleshooting at `/api/raw-hubble-graph` and is not mixed into this dashboard."
+          }
+        }
+      ]
+    }

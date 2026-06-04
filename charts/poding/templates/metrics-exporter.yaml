@@ -1,0 +1,103 @@
+{{- if .Values.metricsExporter.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: poding-metrics-exporter
+  namespace: {{ include "poding.namespace" . }}
+  labels:
+    {{- include "poding.labels" . | nindent 4 }}
+    app: poding-metrics-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: poding-metrics-exporter
+  template:
+    metadata:
+      labels:
+        app: poding-metrics-exporter
+    spec:
+      {{- if .Values.nodePlacement.enabled }}
+      # 노드-로컬 results/latest_*.json 을 읽으므로 detector 와 같은 노드에 핀.
+      nodeName: {{ .Values.nodePlacement.hostname }}
+      {{- end }}
+      {{- /* runFromImage: 이미지 코드(workdir)로 실행 + results 만 마운트.
+             기본(lab): 노드의 레포(repoRoot)를 통째로 마운트해 실행. */}}
+      {{- $codeRoot := ternary .Values.image.workdir .Values.hostPath.repoRoot .Values.metricsExporter.runFromImage }}
+      {{- $resultsInPod := .Values.hostPath.resultsDir }}
+      {{- if .Values.metricsExporter.runFromImage }}{{- $resultsInPod = printf "%s/results" $codeRoot }}{{- end }}
+      containers:
+        - name: exporter
+          image: {{ include "poding.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - python3
+            - {{ $codeRoot }}/observability/poding_metrics_exporter.py
+          args:
+            - "--results-dir"
+            - {{ $resultsInPod | quote }}
+            - "--listen-port"
+            - {{ .Values.metricsExporter.port | quote }}
+            - "--staleness-seconds"
+            - {{ .Values.metricsExporter.stalenessSeconds | quote }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.metricsExporter.port }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 1
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 1
+            failureThreshold: 3
+          {{- with .Values.metricsExporter.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- if .Values.metricsExporter.runFromImage }}
+            - name: poding-results
+              mountPath: {{ $resultsInPod }}
+            {{- else }}
+            - name: poding-workdir
+              mountPath: {{ .Values.hostPath.repoRoot }}
+            {{- end }}
+      volumes:
+        {{- if .Values.metricsExporter.runFromImage }}
+        - name: poding-results
+          hostPath:
+            path: {{ .Values.hostPath.resultsDir }}
+            type: DirectoryOrCreate
+        {{- else }}
+        - name: poding-workdir
+          hostPath:
+            path: {{ .Values.hostPath.repoRoot }}
+            type: Directory
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: poding-metrics-exporter
+  namespace: {{ include "poding.namespace" . }}
+  labels:
+    {{- include "poding.labels" . | nindent 4 }}
+    app: poding-metrics-exporter
+spec:
+  selector:
+    app: poding-metrics-exporter
+  ports:
+    - name: metrics
+      port: {{ .Values.metricsExporter.port }}
+      targetPort: metrics
+{{- end }}

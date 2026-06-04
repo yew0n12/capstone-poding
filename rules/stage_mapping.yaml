@@ -1,0 +1,317 @@
+version: "0.2"
+
+symbols:
+  s:
+    description: shell execution
+  s_shell:
+    description: container shell execution
+  p:
+    description: package install or suspicious package activity
+  p_pkg_install:
+    description: package manager or tool installation activity
+  b:
+    description: binary execution or drop
+  b_drop_exec:
+    description: dropped binary execution
+  h:
+    description: container escape / host namespace breakout (nsenter, unshare)
+  c:
+    description: sensitive file access
+  c_sa_token:
+    description: Kubernetes ServiceAccount token access
+  c_secret:
+    description: Kubernetes Secret or mounted secret path access
+  c_kubeconfig:
+    description: kubeconfig or Kubernetes control-plane credential file access
+  k:
+    description: Kubernetes API access
+  k_api_connect:
+    description: Kubernetes API server TCP connection
+  k_api_auth:
+    description: Kubernetes API access with bearer-token evidence in the command line
+  k_api_enum:
+    description: Kubernetes API resource enumeration evidence in the command line
+  n:
+    description: network tool execution or reconnaissance
+  n_tool:
+    description: network tool execution
+  n_remote_io:
+    description: network-backed stdin/stdout redirection or remote I/O
+  n_scan:
+    description: internal service or port scanning evidence
+  n_bruteforce:
+    description: high-rate authentication attempt burst evidence
+  n_payload_burst:
+    description: high-rate packet burst from a single source to a victim service
+      (LID-DS-only post-exploitation channel saturation indicator)
+  E:
+    description: pod-to-pod east-west propagation evidence
+  E_same_ns:
+    description: same-namespace pod-to-pod east-west connection
+  E_cross_ns:
+    description: cross-namespace pod-to-pod east-west connection
+  E_multi_peer:
+    description: multi-peer pod-to-pod spread from the same source
+  O:
+    description: external outbound evidence
+  O_external:
+    description: external outbound connection
+  X:
+    description: external inbound or external origin evidence
+  X_external_inbound:
+    description: external inbound or external origin connection
+  D:
+    description: DNS anomaly or related detection evidence
+  D_dns:
+    description: DNS flow, DNS lookup burst, or DNS anomaly evidence
+  R:
+    description: cross-layer feedback — propagation edge received from a matched source
+  R_propagation_received:
+    description: cross-layer propagation edge received from a matched source
+  R_host_lateral_received:
+    description: THEIA host-audit lateral inbound from a known remote host endpoint
+      (DARPA TC E5 THEIA replay; not a Kubernetes pod-to-pod edge)
+  n_ssh_tool:
+    description: ssh/sshd/sftp client execution evidence (THEIA host audit)
+  n_scp_transfer:
+    description: scp data-transfer evidence (THEIA host audit)
+  c_host_credential:
+    description: host credential file read (e.g. /etc/shadow, /etc/sudoers, /etc/pam)
+  c_ssh_private_key:
+    description: SSH private key or authorized_keys read from a user home directory
+
+falco:
+  rules:
+    "Terminal shell in container":
+      symbols: ["s", "s_shell"]
+      state_hints: ["RECON"]
+    "Shell Exec in Container":
+      symbols: ["s", "s_shell"]
+      state_hints: ["RECON"]
+    "Package management process launched in container":
+      symbols: ["p", "p_pkg_install"]
+      state_hints: ["RECON"]
+    "Read sensitive file untrusted":
+      symbols: ["c"]
+      state_hints: ["CRED"]
+      output_contains:
+        - "/var/run/secrets/kubernetes.io/serviceaccount/token"
+        - "/var/run/secrets/"
+        - "/run/secrets/"
+        - "/etc/secrets/"
+        - "/etc/shadow"
+        - "/etc/gshadow"
+        - "/etc/sudoers"
+        - "/etc/pam.conf"
+        - "/etc/pam.d/"
+        - "/.ssh/id_rsa"
+        - "/.ssh/id_dsa"
+        - "/.ssh/id_ecdsa"
+        - "/.ssh/id_ed25519"
+        - "/.ssh/authorized_keys"
+        - "kubeconfig"
+        - ".kube/config"
+        - "/etc/kubernetes"
+      conditional_symbols:
+        - symbol: c_sa_token
+          state_hint: CRED
+          output_contains_any:
+            - "/var/run/secrets/kubernetes.io/serviceaccount"
+        - symbol: c_secret
+          state_hint: CRED
+          output_contains_any:
+            - "/var/run/secrets/"
+            - "/run/secrets/"
+            - "/etc/secrets/"
+          output_not_contains_any:
+            - "/var/run/secrets/kubernetes.io/serviceaccount"
+        - symbol: c_kubeconfig
+          state_hint: CRED
+          output_contains_any:
+            - "kubeconfig"
+            - ".kube/config"
+            - "/etc/kubernetes"
+            - "/host/etc/kubernetes"
+            - "/host/root/.kube"
+    "Read Sensitive File via hostPath":
+      symbols: ["c"]
+      state_hints: ["CRED"]
+      conditional_symbols:
+        - symbol: c_kubeconfig
+          state_hint: CRED
+          output_contains_any:
+            - "/host/etc/kubernetes"
+            - "/host/root/.kube"
+    "Read Kubeconfig via hostPath":
+      symbols: ["c", "c_kubeconfig"]
+      state_hints: ["CRED"]
+      output_contains:
+        - "/host/etc/kubernetes"
+        - "/host/root/.kube"
+    "Service Account Token Access":
+      symbols: ["c", "c_sa_token"]
+      state_hints: ["CRED"]
+      output_contains:
+        - "/var/run/secrets/kubernetes.io/serviceaccount/token"
+    "Contact K8S API Server From Container":
+      symbols: ["k", "k_api_connect"]
+      state_hints: ["CRED"]
+    "Pod-ing K8s API Access from Container":
+      symbols: ["k", "k_api_connect"]
+      state_hints: ["CRED"]
+      conditional_symbols:
+        - symbol: k_api_auth
+          state_hint: CRED
+          output_contains_any:
+            - "Authorization: Bearer"
+            - "authorization: bearer"
+            - "--token "
+            - "--token="
+        - symbol: k_api_enum
+          state_hint: CRED
+          output_contains_any:
+            - "/api/v1/pods"
+            - "/api/v1/namespaces"
+            - "/api/v1/secrets"
+            - "/apis/apps/v1"
+            - "kubectl get "
+            - "kubectl describe "
+    "Netcat Remote Code Execution in Container":
+      symbols: ["n", "n_remote_io"]
+      state_hints: ["RECON"]
+    "Pod-ing Netcat Execution in Container":
+      symbols: ["n", "n_tool"]
+      state_hints: ["RECON"]
+    "Pod-ing External Download in Container":
+      symbols: ["n", "n_tool"]
+      state_hints: ["RECON"]
+    "Redirect STDOUT/STDIN to Network Connection in Container":
+      symbols: ["n", "n_remote_io"]
+      state_hints: ["RECON"]
+    "Drop and execute new binary in container":
+      symbols: ["b", "b_drop_exec"]
+      state_hints: ["RECON"]
+    "Namespace Escape via nsenter":
+      symbols: ["h"]
+      state_hints: ["ALERT"]
+    "Pod-ing SA Token Read":
+      symbols: ["c", "c_sa_token"]
+      state_hints: ["CRED"]
+      output_contains:
+        - "/var/run/secrets/kubernetes.io/serviceaccount"
+    "Propagation Received From Suspect":
+      symbols: ["R", "R_propagation_received"]
+      state_hints: ["LATERAL"]
+    "THEIA Host Network Tool":
+      symbols: ["n", "n_tool"]
+      state_hints: ["RECON"]
+      conditional_symbols:
+        - symbol: n_scan
+          state_hint: RECON
+          output_contains_any:
+            - "tool_kind=nmap"
+        - symbol: n_ssh_tool
+          state_hint: RECON
+          output_contains_any:
+            - "tool_kind=ssh"
+        - symbol: n_scp_transfer
+          state_hint: RECON
+          output_contains_any:
+            - "tool_kind=scp"
+    "THEIA Host Credential Read":
+      symbols: ["c"]
+      state_hints: ["CRED"]
+      conditional_symbols:
+        - symbol: c_ssh_private_key
+          state_hint: CRED
+          output_contains_any:
+            - "/.ssh/id_rsa"
+            - "/.ssh/id_dsa"
+            - "/.ssh/id_ecdsa"
+            - "/.ssh/id_ed25519"
+            - "/.ssh/authorized_keys"
+        - symbol: c_host_credential
+          state_hint: CRED
+          output_contains_any:
+            - "/etc/shadow"
+            - "/etc/gshadow"
+            - "/etc/sudoers"
+            - "/etc/pam"
+    "THEIA Host Lateral Inbound":
+      symbols: ["R", "R_host_lateral_received"]
+      state_hints: ["LATERAL"]
+  normalized_types:
+    shell_exec:
+      symbols: ["s", "s_shell"]
+      state_hints: ["RECON"]
+    package_install:
+      symbols: ["p", "p_pkg_install"]
+      state_hints: ["RECON"]
+    service_account_token_access:
+      symbols: ["c"]
+      state_hints: ["CRED"]
+    secret_file_access:
+      symbols: ["c"]
+      state_hints: ["CRED"]
+    k8s_api_access:
+      symbols: ["k", "k_api_connect"]
+      state_hints: ["CRED"]
+    network_tool_exec:
+      symbols: ["n"]
+      state_hints: ["RECON"]
+    process_exec:
+      symbols: ["b", "b_drop_exec"]
+      state_hints: []
+    container_escape:
+      symbols: ["h"]
+      state_hints: ["ALERT"]
+
+hubble:
+  conditions:
+    - name: http_auth_bruteforce
+      symbols: ["n", "n_bruteforce"]
+      state_hints: ["ALERT"]
+      require:
+        event_types: ["http_auth_bruteforce"]
+    - name: couchdb_rce_burst
+      symbols: ["n", "n_payload_burst"]
+      state_hints: ["ALERT"]
+      require:
+        event_types: ["couchdb_rce_burst"]
+    - name: same_namespace_pod_connection
+      symbols: ["E", "E_same_ns"]
+      state_hints: ["LATERAL"]
+      require:
+        event_types: ["new_pod_connection"]
+        peer_pod_present: true
+    - name: cross_namespace_pod_connection
+      symbols: ["E", "E_cross_ns"]
+      state_hints: ["LATERAL"]
+      require:
+        event_types: ["cross_namespace_connection"]
+        peer_pod_present: true
+    - name: repeated_multi_peer_spread
+      symbols: ["E", "E_multi_peer"]
+      state_hints: ["LATERAL", "ALERT"]
+      require:
+        event_types: ["multi_peer_spread"]
+        peer_pod_present: true
+    - name: external_outbound
+      symbols: ["O", "O_external"]
+      state_hints: []
+      require:
+        event_types: ["external_outbound"]
+        external_destination: true
+        public_destination: true
+        direction_any_of: ["egress"]
+    - name: external_origin
+      symbols: ["X", "X_external_inbound"]
+      state_hints: []
+      require:
+        event_types: ["external_inbound"]
+        external_source: true
+    - name: dns_anomaly
+      symbols: ["D", "D_dns"]
+      state_hints: []
+      require:
+        event_types: ["dns_lookup_burst"]

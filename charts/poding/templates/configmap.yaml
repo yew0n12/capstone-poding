@@ -1,0 +1,36 @@
+{{- if .Values.detector.enabled }}
+{{- $c := .Values.detector.config }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: poding-config
+  namespace: {{ include "poding.namespace" . }}
+  labels:
+    {{- include "poding.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    falco:
+      namespace: {{ $c.falco.namespace }}
+      target: {{ $c.falco.target }}
+      command_template: kubectl logs -f -n {namespace} -l {target} -c falco --tail=20 --since=30s --prefix --max-log-requests=10
+
+    hubble:
+      server: {{ $c.hubble.relayServer }}
+      command_template: hubble observe --server {server} --follow --since 30s
+      relay_namespace: {{ $c.hubble.relayNamespace }}
+      relay_service: {{ $c.hubble.relayService }}
+      relay_local_port: {{ $c.hubble.relayLocalPort | quote }}
+      relay_remote_port: {{ $c.hubble.relayRemotePort | quote }}
+      port_forward_command: cilium hubble port-forward
+      fallback_port_forward_command: kubectl port-forward -n {relay_namespace} {relay_service} {relay_local_port}:{relay_remote_port}
+
+    pipeline:
+      cluster_name: {{ $c.pipeline.clusterName }}
+      results_dir: {{ $c.pipeline.resultsDir }}
+      run_label: {{ $c.pipeline.runLabel | quote }}
+      keep_latest: {{ $c.pipeline.keepLatest | quote }}
+      logs_dir: {{ $c.pipeline.logsDir }}
+      startup_sleep: {{ $c.pipeline.startupSleep | quote }}
+      api_host: {{ $c.pipeline.apiHost }}
+      api_port: {{ .Values.detector.port | quote }}
+{{- end }}

@@ -1,0 +1,347 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pod-ing Unified Event Schema",
+  "description": "Normalized input schema for Falco runtime events and Hubble network flow events. Pod metadata fields are treated as first-class correlation keys for the correlation engine.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_id",
+    "event_source",
+    "event_kind",
+    "event_category",
+    "event_subtype",
+    "observed_at",
+    "cluster",
+    "subject",
+    "correlation_context",
+    "raw_reference"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.3.0"
+    },
+    "event_id": {
+      "type": "string"
+    },
+    "event_source": {
+      "type": "string",
+      "enum": ["falco", "hubble"]
+    },
+    "event_kind": {
+      "type": "string",
+      "enum": ["runtime_event", "network_flow"]
+    },
+    "event_category": {
+      "type": "string",
+      "enum": [
+        "execution",
+        "reconnaissance",
+        "credential_access",
+        "privilege_activity",
+        "east_west_flow",
+        "namespace_movement",
+        "egress_flow",
+        "dns_activity",
+        "unknown"
+      ]
+    },
+    "event_subtype": {
+      "type": "string",
+      "enum": [
+        "shell_exec",
+        "process_exec",
+        "internal_scan",
+        "service_account_token_access",
+        "secret_file_access",
+        "credential_dump_attempt",
+        "privilege_escalation_attempt",
+        "container_escape_attempt",
+        "new_pod_to_pod_connection",
+        "repeated_multi_peer_connection",
+        "cross_namespace_connection",
+        "pod_to_external_connection",
+        "dns_lookup_burst",
+        "unknown"
+      ]
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "cluster": {
+      "type": "object",
+      "required": ["cluster_name"],
+      "properties": {
+        "cluster_name": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "subject": {
+      "type": "object",
+      "required": ["pod_name", "namespace"],
+      "properties": {
+        "pod_name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "container_name": {
+          "type": "string"
+        },
+        "node_name": {
+          "type": "string"
+        },
+        "workload_name": {
+          "type": "string"
+        },
+        "workload_kind": {
+          "type": "string"
+        },
+        "pod_ip": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "peer": {
+      "type": "object",
+      "properties": {
+        "pod_name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "node_name": {
+          "type": "string"
+        },
+        "workload_name": {
+          "type": "string"
+        },
+        "workload_kind": {
+          "type": "string"
+        },
+        "pod_ip": {
+          "type": "string"
+        },
+        "ip": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "rule": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "string"
+        },
+        "process_name": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "evt_type": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "network": {
+      "type": "object",
+      "properties": {
+        "direction": {
+          "type": "string",
+          "enum": ["ingress", "egress", "unknown"]
+        },
+        "protocol": {
+          "type": "string"
+        },
+        "source_ip": {
+          "type": "string"
+        },
+        "source_port": {
+          "type": "integer"
+        },
+        "destination_ip": {
+          "type": "string"
+        },
+        "destination_port": {
+          "type": "integer"
+        },
+        "verdict": {
+          "type": "string",
+          "enum": ["FORWARDED", "DROPPED", "UNKNOWN"]
+        },
+        "dns_query": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "labels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "normalization": {
+      "type": "object",
+      "required": ["normalized_signal"],
+      "properties": {
+        "normalized_signal": {
+          "type": "string",
+          "enum": [
+            "runtime_shell_exec",
+            "runtime_process_exec",
+            "runtime_recon_activity",
+            "runtime_credential_access",
+            "runtime_secret_access",
+            "runtime_privilege_activity",
+            "runtime_container_escape_attempt",
+            "network_internal_new_connection",
+            "network_repeated_internal_spread",
+            "network_cross_namespace_movement",
+            "network_external_egress",
+            "network_dns_activity",
+            "unknown"
+          ]
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "correlation_context": {
+      "type": "object",
+      "description": "Direct correlation keys shared across Falco and Hubble via Pod metadata and network identity.",
+      "required": [
+        "primary_entity_key",
+        "namespace_key",
+        "node_key",
+        "workload_key"
+      ],
+      "properties": {
+        "primary_entity_key": {
+          "type": "string",
+          "description": "Primary Pod-level key, usually namespace/pod_name."
+        },
+        "namespace_key": {
+          "type": "string",
+          "description": "Namespace-level correlation key."
+        },
+        "node_key": {
+          "type": "string",
+          "description": "Node-level correlation key."
+        },
+        "workload_key": {
+          "type": "string",
+          "description": "Workload-level correlation key."
+        },
+        "peer_entity_key": {
+          "type": "string",
+          "description": "Optional peer Pod-level key for Hubble or inferred propagation relations."
+        },
+        "pod_ip_key": {
+          "type": "string",
+          "description": "Pod IP based correlation key."
+        },
+        "peer_pod_ip_key": {
+          "type": "string",
+          "description": "Peer Pod IP based correlation key."
+        },
+        "key_sources": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "pod_name",
+              "namespace",
+              "node_name",
+              "workload_name",
+              "pod_ip",
+              "peer_pod_name",
+              "peer_namespace",
+              "peer_node_name",
+              "peer_workload_name",
+              "peer_pod_ip"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "raw_reference": {
+      "type": "object",
+      "required": ["source_system"],
+      "properties": {
+        "source_system": {
+          "type": "string",
+          "enum": ["falco", "hubble"]
+        },
+        "raw_event_id": {
+          "type": "string"
+        },
+        "source_file": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "event_source": {
+            "const": "falco"
+          }
+        }
+      },
+      "then": {
+        "required": ["runtime"],
+        "properties": {
+          "event_kind": {
+            "const": "runtime_event"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_source": {
+            "const": "hubble"
+          }
+        }
+      },
+      "then": {
+        "required": ["network"],
+        "properties": {
+          "event_kind": {
+            "const": "network_flow"
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

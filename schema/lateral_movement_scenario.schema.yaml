@@ -1,0 +1,76 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+title: Pod-ing NFA Scenario Rule Schema
+description: Schema for Pod-ing rule-based NFA scenario definitions in rules/scenario_rules.yaml.
+type: object
+required:
+  - version
+  - defaults
+  - rules
+properties:
+  version:
+    type: string
+  defaults:
+    type: object
+    properties:
+      time_window_seconds:
+        type: integer
+        minimum: 1
+    additionalProperties: false
+  rules:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required:
+        - id
+        - steps
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+          enum: ["primary", "supporting"]
+        time_window_seconds:
+          type: integer
+          minimum: 1
+        tags:
+          type: array
+          items:
+            type: string
+        steps:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+              - id
+              - state
+              - symbols
+            properties:
+              id:
+                type: string
+              state:
+                type: string
+                enum: ["RECON", "CRED", "LATERAL", "ALERT"]
+              symbols:
+                type: array
+                minItems: 1
+                items:
+                  type: string
+                  minLength: 1
+              event_sources:
+                type: array
+                items:
+                  type: string
+                  enum: ["falco", "hubble"]
+              event_types:
+                type: array
+                items:
+                  type: string
+            additionalProperties: false
+      additionalProperties: false
+additionalProperties: false

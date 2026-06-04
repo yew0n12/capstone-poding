@@ -1,0 +1,43 @@
+# 로컬(kind 단일 노드) 배포용 values 오버라이드
+# 사용: helm install poding charts/poding -f charts/poding/values-local.yaml
+# (보통은 scripts/local/local-up.sh 가 자동으로 적용한다)
+
+# 단일 노드라 노드 핀 불필요 — 아무 노드(=control-plane)에 스케줄.
+nodePlacement:
+  enabled: false
+
+# kind load 한 로컬 이미지를 쓰므로 절대 pull 하지 않는다.
+image:
+  repository: poding
+  tag: prototype
+  pullPolicy: Never
+
+# kind 노드에 extraMounts 로 마운트한 레포 경로(/poding) 기준.
+# local-up.sh 의 kind-config extraMounts.containerPath 와 일치해야 한다.
+hostPath:
+  repoRoot: /poding
+  resultsDir: /poding/results
+  advisoryDir: /poding/propagation-advisory
+
+# detector 설정은 기본값(Falco/Hubble 모두 클러스터 내부 기본 경로)을 그대로 사용.
+# Cilium Hubble relay 는 kube-system 에 기본 이름으로 뜬다.
+
+# 관제 UI — 로컬에서 바로 보이게 전부 ON.
+grafana:
+  # kube-prometheus-stack 의 grafana 가 monitoring 네임스페이스에 있으므로
+  # 대시보드/데이터소스 ConfigMap 도 거기에 둬서 sidecar 가 바로 찾게 한다.
+  namespace: monitoring
+  dashboards:
+    enabled: true
+  datasources:
+    enabled: true
+
+# kube-prometheus-stack 이 prometheus-operator CRD 를 제공하므로 ServiceMonitor ON.
+serviceMonitor:
+  enabled: true
+  releaseLabel: kube-prometheus-stack
+
+# Hubble UI 는 Cilium 이 띄운다(local-up.sh 가 활성화). 안내만 표시.
+hubbleUI:
+  showInstructions: true
+  relayNamespace: kube-system
