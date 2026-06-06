@@ -167,10 +167,3 @@ details: falco-shell-1 -> falco-api-1 -> hubble-observe-1
 ```bash
 python3 -m unittest tests.test_fsm tests.test_correlator tests.test_integration_lateral tests.test_live_pipeline tests.test_clusterwide_live_pipeline
 ```
-
-## 문서
-
-- 로컬 실행 가이드(팀원용): [docs/local-run-guide.md](docs/local-run-guide.md) — `./scripts/local/local-up.sh` 한 줄로 kind에 전체 스택 + 관제 UI 재현
-- Helm 차트: [charts/poding/README.md](charts/poding/README.md)
-- NFA 전환 메모: [docs/nfa-migration-notes.md](/home/yw/poding/docs/nfa-migration-notes.md:1)
-- Grafana setup: [docs/grafana-setup.md](/home/yw/poding/docs/grafana-setup.md:1)
