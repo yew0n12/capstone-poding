@@ -1,126 +1,361 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pod-ing Helm Chart Repository</title>
+  <title>Pod-ing Docs</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #f6f8fa;
-      color: #24292f;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      background: linear-gradient(180deg, #f4f8ff 0%, #ffffff 42%);
+      color: #1f2937;
     }
 
     .container {
-      max-width: 900px;
+      max-width: 1080px;
       margin: 0 auto;
-      padding: 64px 24px;
+      padding: 56px 24px 72px;
     }
 
-    .card {
-      background: white;
-      border: 1px solid #d0d7de;
-      border-radius: 16px;
-      padding: 40px;
-      box-shadow: 0 8px 24px rgba(140, 149, 159, 0.15);
+    .hero {
+      display: grid;
+      grid-template-columns: 1.25fr 0.75fr;
+      gap: 32px;
+      align-items: center;
+      margin-bottom: 44px;
     }
 
     .badge {
       display: inline-block;
-      background: #ddf4ff;
-      color: #0969da;
-      padding: 6px 12px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      padding: 7px 13px;
       border-radius: 999px;
       font-size: 14px;
-      font-weight: 600;
-      margin-bottom: 20px;
+      font-weight: 800;
+      margin-bottom: 18px;
     }
 
     h1 {
-      font-size: 44px;
-      margin: 0 0 12px;
+      font-size: 58px;
+      line-height: 1.05;
+      margin: 0 0 18px;
+      letter-spacing: -0.05em;
     }
 
     .subtitle {
-      font-size: 18px;
-      color: #57606a;
-      margin-bottom: 32px;
-      line-height: 1.6;
+      font-size: 20px;
+      line-height: 1.75;
+      color: #4b5563;
+      word-break: keep-all;
+      margin: 0 0 28px;
     }
 
-    h2 {
-      margin-top: 32px;
-      font-size: 22px;
+    .actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .button {
+      display: inline-block;
+      padding: 12px 16px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-weight: 800;
+      border: 1px solid #d1d5db;
+    }
+
+    .button.primary {
+      background: #2563eb;
+      color: white;
+      border-color: #2563eb;
+    }
+
+    .button.secondary {
+      background: white;
+      color: #2563eb;
+    }
+
+    .panel {
+      background: white;
+      border: 1px solid #dbe3ef;
+      border-radius: 22px;
+      padding: 28px;
+      box-shadow: 0 18px 42px rgba(31, 41, 55, 0.08);
+    }
+
+    .mini-title {
+      font-size: 15px;
+      color: #6b7280;
+      font-weight: 800;
+      margin-bottom: 12px;
     }
 
     pre {
-      background: #0d1117;
-      color: #e6edf3;
+      background: #0f172a;
+      color: #e5e7eb;
       padding: 20px;
-      border-radius: 12px;
+      border-radius: 16px;
       overflow-x: auto;
-      font-size: 15px;
-      line-height: 1.6;
+      font-size: 14px;
+      line-height: 1.65;
+      margin: 0;
     }
 
     code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     }
 
+    .section {
+      margin-top: 44px;
+    }
+
+    .section h2 {
+      font-size: 30px;
+      margin: 0 0 16px;
+      letter-spacing: -0.03em;
+    }
+
+    .section-desc {
+      color: #6b7280;
+      line-height: 1.7;
+      margin-bottom: 20px;
+      word-break: keep-all;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 18px;
+      padding: 22px;
+      box-shadow: 0 10px 24px rgba(31, 41, 55, 0.05);
+    }
+
+    .card h3 {
+      margin: 0 0 10px;
+      font-size: 19px;
+    }
+
+    .card p {
+      margin: 0;
+      color: #6b7280;
+      line-height: 1.7;
+      word-break: keep-all;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr auto 1fr;
+      gap: 12px;
+      align-items: center;
+      margin-top: 18px;
+    }
+
+    .flow-box {
+      background: white;
+      border: 1px solid #dbe3ef;
+      border-radius: 16px;
+      padding: 18px;
+      text-align: center;
+      font-weight: 800;
+      box-shadow: 0 10px 24px rgba(31, 41, 55, 0.05);
+    }
+
+    .arrow {
+      color: #2563eb;
+      font-weight: 900;
+      font-size: 22px;
+    }
+
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
     ul {
-      line-height: 1.8;
+      margin: 0;
+      padding-left: 20px;
+      line-height: 1.9;
+    }
+
+    li {
+      word-break: keep-all;
     }
 
     .footer {
-      margin-top: 28px;
-      color: #6e7781;
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid #e5e7eb;
+      color: #6b7280;
       font-size: 14px;
+    }
+
+    @media (max-width: 860px) {
+      .hero,
+      .cards,
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .flow {
+        grid-template-columns: 1fr;
+      }
+
+      .arrow {
+        transform: rotate(90deg);
+        text-align: center;
+      }
+
+      h1 {
+        font-size: 44px;
+      }
     }
   </style>
 </head>
 <body>
   <main class="container">
-    <section class="card">
-      <div class="badge">Helm Chart Repository</div>
+    <section class="hero">
+      <div>
+        <div class="badge">Kubernetes Security · Helm Chart</div>
+        <h1>Pod-ing Docs</h1>
+        <p class="subtitle">
+          Pod-ing은 Falco 런타임 이벤트와 Cilium Hubble 네트워크 플로우를 결합하여
+          Kubernetes 내부 공격 체인을 실시간으로 탐지하는 보안 상관분석 플랫폼입니다.
+        </p>
 
-      <h1>Pod-ing</h1>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/yew0n12/capstone-poding">
+            GitHub 저장소 보기
+          </a>
+          <a class="button secondary" href="index.yaml">
+            Helm Chart Index
+          </a>
+        </div>
+      </div>
 
-      <p class="subtitle">
-        Kubernetes security correlation platform that combines Falco runtime events
-        and Cilium Hubble network flows to detect attack chains in real time.
+      <div class="panel">
+        <div class="mini-title">빠른 설치</div>
+        <pre><code>helm repo add poding https://yew0n12.github.io/capstone-poding/
+helm repo update
+helm install poding poding/poding \
+  -n poding-system \
+  --create-namespace</code></pre>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Pod-ing이 해결하는 문제</h2>
+      <p class="section-desc">
+        Kubernetes 환경에서는 컨테이너 내부 행위와 Pod 간 네트워크 흐름이 분리되어 관찰됩니다.
+        Pod-ing은 이 두 관점을 하나로 묶어 단일 이벤트가 아니라 공격 진행 흐름을 추적합니다.
       </p>
 
-      <h2>Quick Install</h2>
-      <pre><code>helm repo add poding https://yew0n12.github.io/capstone-poding/
-helm repo update
-helm install poding poding/poding -n poding-system --create-namespace</code></pre>
+      <div class="cards">
+        <div class="card">
+          <h3>런타임 이벤트 수집</h3>
+          <p>
+            Falco를 통해 shell 실행, 민감 파일 접근, ServiceAccount token 접근 등
+            컨테이너 내부 행위를 수집합니다.
+          </p>
+        </div>
 
-      <h2>What is Pod-ing?</h2>
-      <ul>
-        <li>Collects runtime security events from Falco</li>
-        <li>Collects network flow data from Cilium Hubble</li>
-        <li>Correlates heterogeneous events using an FSM-based detection engine</li>
-        <li>Visualizes attack propagation through observability components</li>
-      </ul>
+        <div class="card">
+          <h3>네트워크 플로우 수집</h3>
+          <p>
+            Cilium Hubble을 통해 Pod 간 통신, 외부 연결, namespace 간 이동 흐름을
+            네트워크 관점에서 확인합니다.
+          </p>
+        </div>
 
-      <h2>Requirements</h2>
-      <ul>
-        <li>Kubernetes cluster</li>
-        <li>Helm 3</li>
-        <li>Falco</li>
-        <li>Cilium / Hubble</li>
-      </ul>
+        <div class="card">
+          <h3>FSM 기반 상관분석</h3>
+          <p>
+            서로 다른 이벤트를 시간순으로 연결하여 공격이 어느 단계까지 진행됐는지
+            상태 기반으로 추적합니다.
+          </p>
+        </div>
+      </div>
+    </section>
 
-      <h2>Chart Information</h2>
-      <pre><code>Repository: poding
+    <section class="section">
+      <h2>시스템 흐름</h2>
+      <p class="section-desc">
+        Falco와 Hubble에서 수집된 이벤트는 Pod-ing 상관분석 엔진으로 전달되고,
+        분석 결과는 Grafana 대시보드와 알림 지표로 확인할 수 있습니다.
+      </p>
+
+      <div class="flow">
+        <div class="flow-box">Falco / Hubble</div>
+        <div class="arrow">→</div>
+        <div class="flow-box">Pod-ing Correlator</div>
+        <div class="arrow">→</div>
+        <div class="flow-box">Grafana / Alert</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>설치 정보</h2>
+
+      <div class="info-grid">
+        <div class="panel">
+          <div class="mini-title">요구사항</div>
+          <ul>
+            <li>Kubernetes 클러스터</li>
+            <li>Helm 3</li>
+            <li>Falco</li>
+            <li>Cilium / Hubble</li>
+          </ul>
+        </div>
+
+        <div class="panel">
+          <div class="mini-title">차트 정보</div>
+          <pre><code>Repository: poding
 Chart:      poding/poding
 Namespace:  poding-system</code></pre>
-
-      <p class="footer">
-        Pod-ing Capstone Design Project · Kubernetes Security Correlation Platform
-      </p>
+        </div>
+      </div>
     </section>
+
+    <section class="section">
+      <h2>배포 링크</h2>
+      <p class="section-desc">
+        아래 링크를 통해 Pod-ing 소스코드와 Helm Chart 배포 정보를 확인할 수 있습니다.
+      </p>
+
+      <div class="cards">
+        <div class="card">
+          <h3>GitHub Repository</h3>
+          <p>Pod-ing 소스코드, 배포 파일, 실험 시나리오를 확인할 수 있습니다.</p>
+        </div>
+
+        <div class="card">
+          <h3>Helm Chart Page</h3>
+          <p>Helm을 이용해 Pod-ing을 Kubernetes 클러스터에 설치할 수 있습니다.</p>
+        </div>
+
+        <div class="card">
+          <h3>Chart Index</h3>
+          <p>Helm repository index.yaml을 통해 배포된 Chart 정보를 확인할 수 있습니다.</p>
+        </div>
+      </div>
+    </section>
+
+    <p class="footer">
+      Pod-ing Capstone Design Project · Kubernetes 보안 상관분석 플랫폼
+    </p>
   </main>
 </body>
 </html>
